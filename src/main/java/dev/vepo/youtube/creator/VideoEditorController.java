@@ -2,18 +2,11 @@ package dev.vepo.youtube.creator;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 import org.jboss.resteasy.reactive.multipart.FileUpload;
 
-import dev.vepo.youtube.creator.model.TrimOperation;
-import dev.vepo.youtube.creator.model.VideoEditRequest;
-import dev.vepo.youtube.creator.model.VideoSettings;
 import dev.vepo.youtube.creator.model.TimelineProject;
-import dev.vepo.youtube.creator.model.MediaTrack;
-import dev.vepo.youtube.creator.model.MediaClip;
 import dev.vepo.youtube.creator.service.FileStorageService;
 import dev.vepo.youtube.creator.service.VideoProcessingService;
 import io.quarkus.qute.Location;
