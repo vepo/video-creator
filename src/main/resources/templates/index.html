@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Editor</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎬 Quarkus Video Editor</h1>
+            <p>Edit your videos using MLT framework</p>
+        </header>
+
+        <div class="status-card">
+            {#if meltAvailable}
+                <div class="status success">
+                    ✅ MLT is available and ready to use
+                </div>
+            {#else}
+                <div class="status error">
+                    ❌ MLT is not available. Please install melt command.
+                </div>
+            {/if}
+        </div>
+
+        <div class="actions">
+            <a href="/editor" class="btn btn-primary btn-large">
+                🎬 Start Video Editing
+            </a>
+        </div>
+
+        <div class="features">
+            <h2>Features</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h3>🎬 Multi-Track Timeline</h3>
+                    <p>Professional timeline editor with multiple video and audio tracks</p>
+                </div>
+                <div class="feature-card">
+                    <h3>✂️ Trim & Cut Videos</h3>
+                    <p>Cut and trim specific sections with drag-and-drop precision</p>
+                </div>
+                <div class="feature-card">
+                    <h3>🎵 Audio Mixing</h3>
+                    <p>Add multiple audio tracks and mix them together</p>
+                </div>
+                <div class="feature-card">
+                    <h3>👁️ Live Preview</h3>
+                    <p>Preview your edits in real-time before rendering</p>
+                </div>
+                <div class="feature-card">
+                    <h3>🎞️ Multiple Formats</h3>
+                    <p>Support for various video formats and codecs</p>
+                </div>
+                <div class="feature-card">
+                    <h3>⚡ Fast Processing</h3>
+                    <p>Powered by MLT framework for efficient video processing</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

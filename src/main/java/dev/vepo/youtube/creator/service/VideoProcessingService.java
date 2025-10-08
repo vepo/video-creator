@@ -9,6 +9,7 @@ import java.util.List;
 import dev.vepo.youtube.creator.AppConfig;
 import dev.vepo.youtube.creator.model.VideoEditRequest;
 import dev.vepo.youtube.creator.model.VideoSettings;
+import dev.vepo.youtube.creator.model.TimelineProject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -36,6 +37,9 @@ public class VideoProcessingService {
         // Build melt command
         List<String> command = buildMeltCommand(xmlPath, editRequest.getOutputFile(), editRequest.getVideoSettings());
         
+        // Log the command for debugging
+        System.out.println("Executing melt command: " + String.join(" ", command));
+        
         // Execute melt command
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.redirectErrorStream(true);
@@ -48,6 +52,7 @@ public class VideoProcessingService {
             String line;
             while ((line = reader.readLine()) != null) {
                 output.append(line).append("\n");
+                System.out.println("melt: " + line); // Log melt output
             }
         }
         
@@ -69,23 +74,27 @@ public class VideoProcessingService {
         command.add(xmlPath);
         command.add("-consumer");
         
-        StringBuilder consumer = new StringBuilder("avformat:");
-        consumer.append(outputPath);
-        consumer.append(" vcodec=").append(settings.getVideoCodec());
-        consumer.append(" acodec=").append(settings.getAudioCodec());
-        consumer.append(" crf=").append(settings.getCrf());
-        consumer.append(" preset=").append(settings.getPreset());
+        // Build consumer with proper parameter separation
+        String absoluteOutputPath = java.nio.file.Paths.get(outputPath).toAbsolutePath().toString();
+        command.add("avformat:" + absoluteOutputPath);
+        command.add("vcodec=" + settings.getVideoCodec());
+        command.add("acodec=" + settings.getAudioCodec());
+        command.add("crf=" + settings.getCrf());
+        command.add("preset=" + settings.getPreset());
         
         if (settings.getAudioBitrate() != null) {
-            consumer.append(" ab=").append(settings.getAudioBitrate()).append("k");
+            command.add("ab=" + settings.getAudioBitrate() + "k");
         }
         
         if (settings.getWidth() != null && settings.getHeight() != null) {
-            consumer.append(" width=").append(settings.getWidth());
-            consumer.append(" height=").append(settings.getHeight());
+            command.add("width=" + settings.getWidth());
+            command.add("height=" + settings.getHeight());
         }
         
-        command.add(consumer.toString());
+        // Add proper file format extension handling
+        if (!outputPath.endsWith(".mp4") && !outputPath.endsWith(".mkv") && !outputPath.endsWith(".avi")) {
+            command.add("f=mp4");
+        }
         
         return command;
     }
@@ -97,5 +106,104 @@ public class VideoProcessingService {
         } catch (IOException | InterruptedException e) {
             return false;
         }
+    }
+    
+    public String processTimelineProject(TimelineProject project, String outputPath) throws IOException, InterruptedException {
+        // Generate MLT XML for timeline project
+        String xmlPath = xmlGenerator.generateTimelineMLTXml(project);
+        
+        // Build melt command
+        List<String> command = buildMeltCommand(xmlPath, outputPath, project.getVideoSettings());
+        
+        // Log the command for debugging
+        System.out.println("Executing timeline melt command: " + String.join(" ", command));
+        
+        // Execute melt command
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
+        processBuilder.redirectErrorStream(true);
+        
+        Process process = processBuilder.start();
+        
+        // Read output
+        StringBuilder output = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+                System.out.println("melt: " + line); // Log melt output
+            }
+        }
+        
+        int exitCode = process.waitFor();
+        
+        // Cleanup XML file
+        fileStorageService.cleanupFile(xmlPath);
+        
+        if (exitCode != 0) {
+            throw new RuntimeException("melt command failed with exit code " + exitCode + "\nOutput: " + output);
+        }
+        
+        return outputPath;
+    }
+    
+    public String generatePreview(TimelineProject project, double startTime, double duration) throws IOException, InterruptedException {
+        // Generate preview filename
+        String previewFilename = "preview_" + System.currentTimeMillis() + ".mp4";
+        String previewPath = fileStorageService.getOutputPath(previewFilename).toString();
+        
+        // Generate MLT XML for timeline project
+        String xmlPath = xmlGenerator.generateTimelineMLTXml(project);
+        
+        // Build melt command for preview (shorter duration, lower quality)
+        List<String> command = new ArrayList<>();
+        command.add(appConfig.meltCommand());
+        command.add(xmlPath);
+        command.add("-consumer");
+        
+        String absoluteOutputPath = java.nio.file.Paths.get(previewPath).toAbsolutePath().toString();
+        command.add("avformat:" + absoluteOutputPath);
+        command.add("vcodec=libx264");
+        command.add("acodec=aac");
+        command.add("crf=28"); // Lower quality for faster preview
+        command.add("preset=ultrafast"); // Fastest encoding for preview
+        command.add("format=mp4"); // Ensure MP4 format for web compatibility
+        command.add("movflags=faststart"); // Optimize for web streaming
+        
+        // Add time range for preview
+        if (startTime > 0) {
+            command.add("in=" + (int)(startTime * 60));
+        }
+        if (duration > 0) {
+            command.add("out=" + (int)((startTime + duration) * 60));
+        }
+        
+        // Log the command for debugging
+        System.out.println("Executing preview melt command: " + String.join(" ", command));
+        
+        // Execute melt command
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
+        processBuilder.redirectErrorStream(true);
+        
+        Process process = processBuilder.start();
+        
+        // Read output
+        StringBuilder output = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+        }
+        
+        int exitCode = process.waitFor();
+        
+        // Cleanup XML file
+        fileStorageService.cleanupFile(xmlPath);
+        
+        if (exitCode != 0) {
+            throw new RuntimeException("Preview generation failed with exit code " + exitCode + "\nOutput: " + output);
+        }
+        
+        return previewPath;
     }
 }

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Video - Video Editor</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>✂️ Edit Video</h1>
+            <p>Editing: <strong>{filename}</strong> ({filesize} bytes)</p>
+            <a href="/upload" class="btn btn-secondary">← Upload Different File</a>
+        </header>
+
+        <form action="/process" method="post" class="edit-form">
+            <input type="hidden" name="inputFile" value="{filepath}">
+
+            <div class="form-section">
+                <h2>📁 Output Settings</h2>
+                <div class="form-group">
+                    <label for="outputFilename">Output Filename:</label>
+                    <input type="text" id="outputFilename" name="outputFilename" 
+                           value="edited_{filename}" required>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>✂️ Trim Sections</h2>
+                <div id="trim-sections">
+                    <div class="trim-section">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Start Time (seconds):</label>
+                                <input type="number" name="trimStart[]" step="0.1" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label>End Time (seconds):</label>
+                                <input type="number" name="trimEnd[]" step="0.1" min="0" value="10">
+                            </div>
+                            <button type="button" class="btn btn-danger remove-trim" onclick="removeTrimSection(this)">Remove</button>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="addTrimSection()">+ Add Another Trim Section</button>
+            </div>
+
+            <div class="form-section">
+                <h2>🔧 Video Settings</h2>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="videoCodec">Video Codec:</label>
+                        <select id="videoCodec" name="videoCodec">
+                            <option value="libx264" selected>H.264 (libx264)</option>
+                            <option value="libx265">H.265 (libx265)</option>
+                            <option value="libvpx">VP8 (libvpx)</option>
+                            <option value="libvpx-vp9">VP9 (libvpx-vp9)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="audioCodec">Audio Codec:</label>
+                        <select id="audioCodec" name="audioCodec">
+                            <option value="aac" selected>AAC</option>
+                            <option value="libmp3lame">MP3</option>
+                            <option value="libvorbis">Vorbis</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="crf">Quality (CRF):</label>
+                        <input type="number" id="crf" name="crf" value="23" min="0" max="51">
+                        <small>0=best quality, 51=worst quality</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="preset">Encoding Preset:</label>
+                        <select id="preset" name="preset">
+                            <option value="ultrafast">Ultrafast</option>
+                            <option value="superfast">Superfast</option>
+                            <option value="veryfast">Veryfast</option>
+                            <option value="faster">Faster</option>
+                            <option value="fast">Fast</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="slow">Slow</option>
+                            <option value="slower">Slower</option>
+                            <option value="veryslow">Veryslow</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="width">Width (pixels):</label>
+                        <input type="number" id="width" name="width" placeholder="Original width">
+                    </div>
+                    <div class="form-group">
+                        <label for="height">Height (pixels):</label>
+                        <input type="number" id="height" name="height" placeholder="Original height">
+                    </div>
+                    <div class="form-group">
+                        <label for="audioBitrate">Audio Bitrate (kbps):</label>
+                        <input type="number" id="audioBitrate" name="audioBitrate" value="128" min="64" max="320">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">🎬 Process Video</button>
+                <button type="reset" class="btn btn-secondary">Reset Form</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let trimCount = 1;
+
+        function addTrimSection() {
+            trimCount++;
+            const trimSections = document.getElementById('trim-sections');
+            const newSection = document.createElement('div');
+            newSection.className = 'trim-section';
+            newSection.innerHTML = 
+                '<div class="form-row">' +
+                    '<div class="form-group">' +
+                        '<label>Start Time (seconds):</label>' +
+                        '<input type="number" name="trimStart[]" step="0.1" min="0" value="' + ((trimCount-1)*10) + '">' +
+                    '</div>' +
+                    '<div class="form-group">' +
+                        '<label>End Time (seconds):</label>' +
+                        '<input type="number" name="trimEnd[]" step="0.1" min="0" value="' + (trimCount*10) + '">' +
+                    '</div>' +
+                    '<button type="button" class="btn btn-danger remove-trim" onclick="removeTrimSection(this)">Remove</button>' +
+                '</div>';
+            trimSections.appendChild(newSection);
+        }
+
+        function removeTrimSection(button) {
+            if (document.querySelectorAll('.trim-section').length > 1) {
+                button.closest('.trim-section').remove();
+            }
+        }
+    </script>
+</body>
+</html>

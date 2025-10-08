@@ -1,7 +1,6 @@
 package dev.vepo.youtube.creator;
 
 import io.smallrye.config.ConfigMapping;
-import io.smallrye.config.WithName;
 
 @ConfigMapping(prefix = "app")
 public interface AppConfig {
