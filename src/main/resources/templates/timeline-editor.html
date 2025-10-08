@@ -521,32 +521,44 @@
                         '<span>' + clip.fileName + '</span>' +
                     '</div>' +
                     '<div class="property-group">' +
-                        '<label>Position:</label>' +
-                        '<input type="number" id="clipPosition" value="' + clip.timelinePosition.toFixed(1) + '" step="0.1" min="0">' +
+                        '<label>Timeline Position (s):</label>' +
+                        '<input type="number" id="clipPosition" value="' + clip.timelinePosition.toFixed(2) + '" step="0.01" min="0">' +
                     '</div>' +
                     '<div class="property-group">' +
-                        '<label>Duration:</label>' +
-                        '<input type="number" id="clipDuration" value="' + clip.duration.toFixed(1) + '" step="0.1" min="0.1">' +
+                        '<label>Start (s):</label>' +
+                        '<input type="number" id="clipStart" value="' + clip.startTime.toFixed(2) + '" step="0.01" min="0">' +
+                    '</div>' +
+                    '<div class="property-group">' +
+                        '<label>Length (s):</label>' +
+                        '<input type="number" id="clipLength" value="' + (clip.endTime - clip.startTime).toFixed(2) + '" step="0.01" min="0.01">' +
+                    '</div>' +
+                    '<div class="property-group">' +
+                        '<label>Speed:</label>' +
+                        '<input type="number" id="clipSpeed" value="' + (clip.speed ? clip.speed.toFixed(2) : '1.00') + '" step="0.01" min="0.1" max="10">' +
                     '</div>' +
                     '<div class="property-actions">' +
-                        '<button class="btn btn-primary btn-small" onclick="updateClipProperties()">Update</button>' +
+                        '<button class="btn btn-primary btn-small" onclick="updateClipViewProperties()">Update</button>' +
                     '</div>' +
                 '</div>';
         }
 
-        function updateClipProperties() {
+        function updateClipViewProperties() {
             if (!selectedClip) return;
 
             const position = parseFloat(document.getElementById('clipPosition').value);
-            const duration = parseFloat(document.getElementById('clipDuration').value);
+            const start = parseFloat(document.getElementById('clipStart').value);
+            const length = parseFloat(document.getElementById('clipLength').value);
+            const speed = parseFloat(document.getElementById('clipSpeed').value);
 
             // Find and update the clip
             for (const track of currentProject.tracks) {
                 const clip = track.clips.find(c => c.id === selectedClip);
                 if (clip) {
                     clip.timelinePosition = position;
-                    clip.duration = duration;
-                    clip.endTime = clip.startTime + duration;
+                    clip.startTime = start;
+                    clip.endTime = start + length;
+                    clip.speed = speed;
+                    clip.duration = length / (speed > 0 ? speed : 1.0);
                     break;
                 }
             }

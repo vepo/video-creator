@@ -111,19 +111,17 @@ public class MLTXmlGenerator {
                     .toList();
                 
                 for (MediaClip clip : sortedClips) {
-                    if (clip.getStartTime() > 0 || clip.getEndTime() > 0) {
-                        // Trimmed clip
-                        int startFrame = (int) (clip.getStartTime() * 60);
-                        int endFrame = (int) (clip.getEndTime() * 60);
-                        int timelineFrame = (int) (clip.getTimelinePosition() * 60);
-                        
-                        writer.write(String.format("    <entry producer=\"%s\" in=\"%d\" out=\"%d\" position=\"%d\"/>\n", 
-                            clip.getId(), startFrame, endFrame, timelineFrame));
-                    } else {
-                        // Full clip
-                        int timelineFrame = (int) (clip.getTimelinePosition() * 60);
-                        writer.write(String.format("    <entry producer=\"%s\" position=\"%d\"/>\n", 
-                            clip.getId(), timelineFrame));
+                    double speed = clip.getSpeed() > 0 ? clip.getSpeed() : 1.0;
+                    int startFrame = (int) (clip.getStartTime() * 60);
+                    int endFrame = (int) (clip.getEndTime() * 60);
+                    int timelineFrame = (int) (clip.getTimelinePosition() * 60);
+                    int effectiveEndFrame = (int) (timelineFrame + ((endFrame - startFrame) / speed));
+
+                    // Always use start/end for clarity, and add speed property if not 1.0
+                    writer.write(String.format("    <entry producer=\"%s\" in=\"%d\" out=\"%d\" position=\"%d\"/>", 
+                        clip.getId(), startFrame, endFrame, timelineFrame));
+                    if (speed != 1.0) {
+                        writer.write(String.format("    <property name=\"speed\">%.2f</property>\n", speed));
                     }
                 }
                 
