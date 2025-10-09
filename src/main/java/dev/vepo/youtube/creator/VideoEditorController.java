@@ -1,13 +1,19 @@
 package dev.vepo.youtube.creator;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
-import java.util.UUID;
+import java.nio.file.StandardCopyOption;
+import java.util.Objects;
 
+import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import dev.vepo.youtube.creator.model.TimelineProject;
-import dev.vepo.youtube.creator.service.FileStorageService;
+import dev.vepo.youtube.creator.project.Projects;
+import dev.vepo.youtube.creator.service.MediaService;
 import dev.vepo.youtube.creator.service.VideoProcessingService;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
@@ -16,6 +22,7 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
@@ -25,26 +32,30 @@ import jakarta.ws.rs.core.Response;
 
 @Path("/")
 public class VideoEditorController {
+    private static final Logger logger = LoggerFactory.getLogger(VideoEditorController.class);
 
     @Inject
     @Location("index.html")
     Template index;
 
     @Inject
-    @Location("timeline-editor.html")
-    Template timelineEditor;
+    @Location("editor.html")
+    Template editor;
 
     @Inject
     VideoProcessingService videoProcessingService;
 
     @Inject
-    FileStorageService fileStorageService;
+    MediaService fileStorageService;
+
+    @Inject
+    Projects projects;
 
     @GET
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance home() {
-        boolean meltAvailable = videoProcessingService.isMeltAvailable();
-        return index.data("meltAvailable", meltAvailable);
+        return index.data("meltAvailable", videoProcessingService.isMeltAvailable(), 
+                     "projects", projects.loadAll());
     }
 
 
@@ -67,52 +78,52 @@ public class VideoEditorController {
     }
 
     @GET
-    @Path("/editor")
+    @Path("/editor/{projectId}")
     @Produces(MediaType.TEXT_HTML)
-    public TemplateInstance editorPage() {
-        boolean meltAvailable = videoProcessingService.isMeltAvailable();
-        return timelineEditor.data("meltAvailable", meltAvailable);
-    }
-
-    @POST
-    @Path("/api/timeline/create")
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response createTimelineProject(TimelineProject project) {
-        try {
-            if (project.getId() == null) {
-                project.setId("project_" + System.currentTimeMillis());
-            }
-            if (project.getName() == null) {
-                project.setName("New Project");
-            }
-            
-            project.updateDuration();
-            
-            return Response.ok(project).build();
-        } catch (Exception e) {
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                .entity("{\"error\": \"Failed to create timeline project: " + e.getMessage() + "\"}")
-                .build();
+    public Response editorPage(@PathParam("projectId") String projectId) {
+        if (Objects.isNull(projectId) || projectId.isBlank() || projectId.equalsIgnoreCase("new")) {
+            var project = projects.newProject();
+            return Response.seeOther(URI.create("/editor/%s".formatted(project.getId().toHexString())))
+                           .build();
         }
+        var project = projects.find(projectId)
+                              .orElseThrow(() -> new NotFoundException("Project not found!!!"));
+        boolean meltAvailable = videoProcessingService.isMeltAvailable();
+        return Response.ok()
+                       .entity(editor.data("meltAvailable", meltAvailable, 
+                                           "project", project)
+                                     .render())
+                       .build();
     }
 
+    public record UploadResponse(String fileId, String fileName, String filePath, String message){}
+    public record ErrorResponse(String error) {}
+
     @POST
-    @Path("/api/timeline/upload")
+    @Path("/api/editor/{projectId}/media")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response uploadFile(@FormParam("file") FileUpload fileUpload) {
+    public Response uploadFile(@PathParam("projectId") String projectId,
+                               @FormParam("name") String name, 
+                               @RestForm("file") FileUpload file) {
+        logger.info("Request! name={} file={}", name, file.uploadedFile());
+        var project = projects.find(projectId)
+                              .orElseThrow(() -> new NotFoundException("Project not found!!!"));
         try {
-            byte[] fileContent = Files.readAllBytes(fileUpload.uploadedFile());
-            String storedPath = fileStorageService.storeUploadedFile(fileContent, fileUpload.fileName());
-            
+            var tempDir = Files.createTempDirectory("upload");
+            var tempFile = tempDir.resolve(file.fileName());
+            Files.copy(file.uploadedFile(), tempFile, StandardCopyOption.REPLACE_EXISTING);
+            var media = fileStorageService.store(tempFile, file.fileName());
+            logger.info("Created media={}", media);
+            project.getMedias().add(media);
+            projects.update(project);
             return Response.ok()
-                .entity("{\"fileId\": \"" + UUID.randomUUID().toString() + "\", \"fileName\": \"" + fileUpload.fileName() + "\", \"filePath\": \"" + storedPath + "\", \"message\": \"File uploaded successfully\"}")
-                .build();
+                           .entity(media)
+                           .build();
         } catch (IOException e) {
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                .entity("{\"error\": \"Failed to upload file: " + e.getMessage() + "\"}")
-                .build();
+                           .entity(new ErrorResponse("Failed to upload file: %s".formatted(e.getMessage())))
+                           .build();
         }
     }
 

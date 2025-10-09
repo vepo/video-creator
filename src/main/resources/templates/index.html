@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Video Editor</title>
     <link rel="stylesheet" href="/css/style.css">
+    <script src="/javascript/index.js"></script>
+
 </head>
 <body>
     <div class="container">
@@ -25,10 +27,36 @@
             {/if}
         </div>
 
-        <div class="actions">
-            <a href="/editor" class="btn btn-primary btn-large">
-                🎬 Start Video Editing
-            </a>
+        <div class="features">
+            <h2>Projects</h2>
+            <div class="feature-grid">
+                {#if projects.isEmpty()}
+                <div class="feature-card">
+                    <a href="/editor/new">
+                        <h3>🎬 New Project</h3>
+                    </a>
+                    <p>Start a new project....</p>
+                </div>
+                {#else}
+                {#for project in projects}
+                <div class="feature-card">
+                    <a href="/editor/{project.id}">
+                        <h3>🎬 {project.name ?: 'No name'}</h3>
+                    </a>
+                    <p>{project.description ?: 'No description'}</p>
+                    <p class="epoch-milli">
+                        {project.createdAt.toEpochMilli ?: 'No date'}
+                    </p>
+                </div>
+                {/for}
+                <div class="feature-card">
+                    <a href="/editor/new">
+                        <h3>🎬 New Project</h3>
+                    </a>
+                    <p>Start a new project....</p>
+                </div>
+                {/if}
+            </div>
         </div>
 
         <div class="features">

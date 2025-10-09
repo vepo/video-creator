@@ -3,8 +3,12 @@ package dev.vepo.youtube.creator.service;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import dev.vepo.youtube.creator.AppConfig;
 import dev.vepo.youtube.creator.model.VideoEditRequest;
@@ -15,6 +19,7 @@ import jakarta.inject.Inject;
 
 @ApplicationScoped
 public class VideoProcessingService {
+    private static final Logger logger = LoggerFactory.getLogger(VideoProcessingService.class);
     
     @Inject
     AppConfig appConfig;
@@ -23,7 +28,7 @@ public class VideoProcessingService {
     MLTXmlGenerator xmlGenerator;
     
     @Inject
-    FileStorageService fileStorageService;
+    MediaService fileStorageService;
     
     public String processVideo(VideoEditRequest editRequest) throws IOException, InterruptedException {
         // Generate MLT XML
@@ -35,10 +40,10 @@ public class VideoProcessingService {
         );
         
         // Build melt command
-        List<String> command = buildMeltCommand(xmlPath, editRequest.getOutputFile(), editRequest.getVideoSettings());
+        var command = buildMeltCommand(xmlPath, editRequest.getOutputFile(), editRequest.getVideoSettings());
         
         // Log the command for debugging
-        System.out.println("Executing melt command: " + String.join(" ", command));
+        logger.info("Executing melt command: {}", command);
         
         // Execute melt command
         ProcessBuilder processBuilder = new ProcessBuilder(command);
@@ -52,7 +57,7 @@ public class VideoProcessingService {
             String line;
             while ((line = reader.readLine()) != null) {
                 output.append(line).append("\n");
-                System.out.println("melt: " + line); // Log melt output
+                logger.info("melt: {}", line); // Log melt output
             }
         }
         
@@ -116,7 +121,7 @@ public class VideoProcessingService {
         List<String> command = buildMeltCommand(xmlPath, outputPath, project.getVideoSettings());
         
         // Log the command for debugging
-        System.out.println("Executing timeline melt command: " + String.join(" ", command));
+        logger.info("Executing timeline melt command: {}", command);
         
         // Execute melt command
         ProcessBuilder processBuilder = new ProcessBuilder(command);
@@ -130,7 +135,7 @@ public class VideoProcessingService {
             String line;
             while ((line = reader.readLine()) != null) {
                 output.append(line).append("\n");
-                System.out.println("melt: " + line); // Log melt output
+                logger.info("melt: {}", line); // Log melt output
             }
         }
         
@@ -148,20 +153,18 @@ public class VideoProcessingService {
     
     public String generatePreview(TimelineProject project, double startTime, double duration) throws IOException, InterruptedException {
         // Generate preview filename
-        String previewFilename = "preview_" + System.currentTimeMillis() + ".mp4";
+        String previewFilename = "preview_%d.mp4".formatted(System.currentTimeMillis());
         String previewPath = fileStorageService.getOutputPath(previewFilename).toString();
         
         // Generate MLT XML for timeline project
         String xmlPath = xmlGenerator.generateTimelineMLTXml(project);
         
         // Build melt command for preview (shorter duration, lower quality)
-        List<String> command = new ArrayList<>();
+        var command = new ArrayList<String>();
         command.add(appConfig.meltCommand());
         command.add(xmlPath);
         command.add("-consumer");
-        
-        String absoluteOutputPath = java.nio.file.Paths.get(previewPath).toAbsolutePath().toString();
-        command.add("avformat:" + absoluteOutputPath);
+        command.add("avformat:%s".formatted(Paths.get(previewPath).toAbsolutePath().toString()));
         command.add("vcodec=libx264");
         command.add("acodec=aac");
         command.add("crf=28"); // Lower quality for faster preview
@@ -178,7 +181,7 @@ public class VideoProcessingService {
         }
         
         // Log the command for debugging
-        System.out.println("Executing preview melt command: " + String.join(" ", command));
+        logger.info("Executing preview melt command: {}", command);
         
         // Execute melt command
         ProcessBuilder processBuilder = new ProcessBuilder(command);

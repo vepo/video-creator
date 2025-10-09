@@ -23,4 +23,7 @@ A Quarkus-based video editing service with a web interface that uses MLT's `melt
 
 **Ubuntu/Debian:**
 ```bash
-sudo apt-get install melt
+sudo apt install melt
+sudo apt install sox
+sudo apt install libsox-fmt-mp3
+```

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenShot-Style Video Editor</title>
+    <link rel="stylesheet" href="/css/editor.css">
+    <script>
+        let currentProject = {project.asJson.raw ?: '{}'};
+        console.log(currentProject);
+    </script>
+    <script src="/javascript/editor.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="editor-header">
+        <div class="header-left">
+            <div class="logo">
+                <span class="logo-icon">🎬</span>
+                <span>OpenShot Editor</span>
+            </div>
+            <div class="menu-bar">
+                <div class="menu-item">File</div>
+                <div class="menu-item">Edit</div>
+                <div class="menu-item">View</div>
+                <div class="menu-item">Help</div>
+            </div>
+        </div>
+        <div class="header-right">
+            <button class="btn btn-secondary" id="playBtn">▶ Play</button>
+            <button class="btn btn-secondary" id="stopBtn">⏹ Stop</button>
+            <button class="btn btn-primary" id="exportBtn">Export Video</button>
+        </div>
+    </header>
+
+    <!-- Main Editor Layout -->
+    <div class="editor-layout">
+        <!-- Left Panel - Project Files -->
+        <div class="project-panel">
+            <div class="panel-header">
+                <span>📁</span>
+                <span>Project Files</span>
+                <button class="btn btn-secondary btn-right" id="uploadBtn">+</button>
+            </div>
+            <div id="project-files-container" class="panel-content">
+                <div class="drop-zone">
+                    <div class="drop-zone-content">
+                        <div class="drop-zone-icon">📁</div>
+                        <div class="drop-zone-text">Drop to add...</div>
+                    </div>
+                </div>
+                <div class="file-list" id="media-list">
+                    <!-- Files will be populated here -->
+                    <!--div class="file-item">
+                        <div class="file-icon">🎥</div>
+                        <div class="file-info">
+                            <div class="file-name">Sample Video 1.mp4</div>
+                            <div class="file-duration">00:30</div>
+                        </div>
+                    </div>
+                    <div class="file-item">
+                        <div class="file-icon">🎵</div>
+                        <div class="file-info">
+                            <div class="file-name">Background Music.mp3</div>
+                            <div class="file-duration">02:15</div>
+                        </div>
+                    </div>
+                    <div class="file-item">
+                        <div class="file-icon">🎥</div>
+                        <div class="file-info">
+                            <div class="file-name">Intro Sequence.mov</div>
+                            <div class="file-duration">00:10</div>
+                        </div>
+                    </div-->
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Panel - Preview and Timeline -->
+        <div class="center-panel">
+            <!-- Preview Area -->
+            <div class="preview-container">
+                <div class="preview-placeholder">
+                    <div style="font-size: 48px; margin-bottom: 10px;">🎬</div>
+                    <div>Video Preview</div>
+                    <div style="font-size: 12px; margin-top: 5px;">Drag clips to the timeline to start editing</div>
+                </div>
+                <div class="preview-controls">
+                    <button class="btn btn-secondary">⏮</button>
+                    <button class="btn btn-secondary">⏪</button>
+                    <button class="btn btn-primary">▶</button>
+                    <button class="btn btn-secondary">⏩</button>
+                    <button class="btn btn-secondary">⏭</button>
+                </div>
+            </div>
+
+            <!-- Timeline Area -->
+            <div class="timeline-container">
+                <div class="timeline-header">
+                    <h3>Timeline</h3>
+                    <div class="timeline-controls">
+                        <button class="btn btn-secondary">🔍+</button>
+                        <button class="btn btn-secondary">🔍-</button>
+                        <button class="btn btn-secondary">📐 Fit</button>
+                    </div>
+                </div>
+
+                <div class="timeline-ruler">
+                    <div class="ruler-marks" id="rulerMarks">
+                        <!-- Time marks will be generated here -->
+                    </div>
+                </div>
+
+                <div class="tracks-container">
+                    <!-- Video Track -->
+                    <div class="track-row">
+                        <div class="track-header">
+                            <div class="track-info">
+                                <span class="track-icon">🎥</span>
+                                <span class="track-name">Video Track 1</span>
+                            </div>
+                            <div class="track-controls">
+                                <button class="track-btn mute-btn">🔇</button>
+                                <button class="track-btn lock-btn">🔒</button>
+                            </div>
+                        </div>
+                        <div class="track-area" id="videoTrack">
+                            <div class="track-line">
+                                <!-- Video clips will be placed here -->
+                                <div class="clip" style="left: 5%; width: 15%;">
+                                    <div class="clip-content">
+                                        <span class="clip-name">Intro</span>
+                                        <div class="clip-controls">
+                                            <button class="clip-btn">✏️</button>
+                                            <button class="clip-btn">🗑️</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="clip" style="left: 25%; width: 20%;">
+                                    <div class="clip-content">
+                                        <span class="clip-name">Scene 1</span>
+                                        <div class="clip-controls">
+                                            <button class="clip-btn">✏️</button>
+                                            <button class="clip-btn">🗑️</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Audio Track -->
+                    <div class="track-row">
+                        <div class="track-header">
+                            <div class="track-info">
+                                <span class="track-icon">🎵</span>
+                                <span class="track-name">Audio Track 1</span>
+                            </div>
+                            <div class="track-controls">
+                                <button class="track-btn mute-btn">🔇</button>
+                                <button class="track-btn lock-btn">🔒</button>
+                            </div>
+                        </div>
+                        <div class="track-area" id="audioTrack">
+                            <div class="track-line">
+                                <!-- Audio clips will be placed here -->
+                                <div class="clip" style="left: 10%; width: 40%; background: linear-gradient(to bottom, #e74c3c, #c0392b); border-color: #c0392b;">
+                                    <div class="clip-content">
+                                        <span class="clip-name">Background Music</span>
+                                        <div class="clip-controls">
+                                            <button class="clip-btn">✏️</button>
+                                            <button class="clip-btn">🗑️</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Playhead -->
+                <div class="playhead" id="playhead" style="left: 15%;">
+                    <div class="playhead-line"></div>
+                    <div class="playhead-handle"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - Properties -->
+        <div class="properties-panel">
+            <div class="properties-tabs">
+                <div class="tab active">Properties</div>
+                <div class="tab">Transitions</div>
+                <div class="tab">Effects</div>
+            </div>
+            <div class="tab-content">
+                <div id="clipProperties">
+                    <p class="placeholder-text">Select a clip to edit properties</p>
+                </div>
+                <h3>Project</h3>
+                <div class="property-group">
+                    <label>Name</label>
+                    <input type="text" />
+                </div>
+                <div class="property-group">
+                    <label>Project Settings</label>
+                    <select>
+                        <option>1920x1080 (Full HD)</option>
+                        <option>1280x720 (HD)</option>
+                        <option>854x480 (SD)</option>
+                    </select>
+                </div>
+                <div class="property-group">
+                    <label>Frame Rate</label>
+                    <select>
+                        <option>60 fps</option>
+                        <option>30 fps</option>
+                        <option>25 fps</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div id="exportModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Export Video</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="property-group">
+                    <label>Export Format</label>
+                    <select>
+                        <option>MP4 (H.264)</option>
+                        <option>WebM (VP9)</option>
+                        <option>MOV (ProRes)</option>
+                    </select>
+                </div>
+                <div class="property-group">
+                    <label>Quality</label>
+                    <select>
+                        <option>High (1080p)</option>
+                        <option>Medium (720p)</option>
+                        <option>Low (480p)</option>
+                    </select>
+                </div>
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <p id="progressText">Ready to export</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary">Cancel</button>
+                <button class="btn btn-primary">Export</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
