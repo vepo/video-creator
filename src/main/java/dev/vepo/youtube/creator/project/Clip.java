@@ -1,6 +1,6 @@
 package dev.vepo.youtube.creator.project;
 
-public class Track {
+public class Clip {
     private int id;
 
     public int getId() {

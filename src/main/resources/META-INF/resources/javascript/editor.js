@@ -29,52 +29,65 @@ const Project = {
 
         return currentProject.medias;
     },
-    allTracks: function() {
+    allClips: function() {
         if (!currentProject) {
             console.error("Loaded project not found!!!");
             return [];
         }
 
-        if (!currentProject.tracks || currentProject.tracks.length == 0) {
-            console.info("No track found!!!");
+        if (!currentProject.clips || currentProject.clips.length == 0) {
+            console.info("No clip found!!!");
             return [];
         }
 
-        return currentProject.tracks;
+        return currentProject.clips;
     },
-    addTrackMedia: function(hash, track) {
+    findClip: function(hash) {
+        if (currentProject && currentProject.clips && currentProject.clips.length > 0) {
+            return currentProject.clips.find(t => t.hash == hash);
+        }
+        return null;
+    }, 
+    addClipMedia: function(hash, track, position) {
         let media = Project.findMedia(hash);
         if(!media) {
             console.error('Media not found!!!', hash);
             return;
         }
 
-        if (!currentProject.tracks) {
-            currentProject.tracks = [];
+        if (!currentProject.clips) {
+            currentProject.clips = [];
         }
-        Hash.generate(`${media.hash}-${currentProject.tracks.length}`)
-            .then(trackHash => {
-                console.log(trackHash);
-                currentProject.tracks.push({
-                    hash: trackHash,
+        Hash.generate(`${media.hash}-${currentProject.clips.length}`)
+            .then(clipHash => {
+                console.log(clipHash);
+                currentProject.clips.push({
+                    name: '',
+                    hash: clipHash,
                     mediaHash: media.hash,
                     duration: media.duration,
-                    type: track
+                    type: track,
+                    start: (currentProject.duration * position) / 100,
+                    speed: 1,
+                    duration: media.duration
                 });
-                UI.reconciliateTracks();
+                console.log(currentProject.clips);
+                UI.reconciliateClips();
             });
     }
 };
 
 const DragNDrop = {
     isMediaFile: function(e) {
+        // Drag came from outside
+        // just check for files
         return e.dataTransfer && 
                e.dataTransfer.items && 
                e.dataTransfer.items.length > 0 && 
                [...e.dataTransfer.items].some((item) => item.kind === 'file');
     }, 
     isMedia: function(e) {
-        return e.dataTransfer && e.dataTransfer.getData('video-editor/media-hash');
+        return DragNDrop.getDragType(e) == 'MEDIA' && e.dataTransfer && e.dataTransfer.getData('video-editor/media-hash');
     },
     setupMedia: function(hash, e) {
         let media = Project.findMedia(hash);
@@ -84,7 +97,8 @@ const DragNDrop = {
         }
         e.dataTransfer.setData('video-editor/media-hash', hash);
         e.dataTransfer.setData('video-editor/media-type', media.type);
-    }, 
+        e.dataTransfer.setData('video-editor/drag-type', 'MEDIA');
+    },
     getMediaType: function(e) {
         if (e && e.dataTransfer) {
             return e.dataTransfer.getData('video-editor/media-type');
@@ -98,6 +112,66 @@ const DragNDrop = {
         } else {
             return null;
         }
+    },
+    getDraggedElement: function(e) {
+        if(e.dataTransfer && e.dataTransfer.getData('video-editor/drag-type')) {
+            if (e.dataTransfer.getData('video-editor/drag-type') == 'CLIP') {
+                return UI.getElementByHash(e.dataTransfer.getData('video-editor/clip-hash'));
+            } else if (e.dataTransfer.getData('video-editor/drag-type') == 'MEDIA') {
+                return UI.getElementByHash(e.dataTransfer.getData('video-editor/media-hash'));
+            } else {
+                return null;
+            }
+        } else {
+            return null;
+        }
+    }, 
+    setupClip: function(hash, e) {
+        let clip = Project.findClip(hash);
+        console.debug("Clip", clip);
+        if (!clip) {
+            console.error("Clip not found!!!", hash);
+        }
+        e.dataTransfer.setData('video-editor/clip-hash', hash);
+        e.dataTransfer.setData('video-editor/clip-type', clip.type);
+        e.dataTransfer.setData('video-editor/drag-type', 'CLIP');
+    }, 
+    isClip: function(e) {
+        return DragNDrop.getDragType(e) == 'CLIP' && e.dataTransfer && e.dataTransfer.getData('video-editor/clip-hash');
+    },
+    getClipType: function(e) {
+        if (e && e.dataTransfer) {
+            return e.dataTransfer.getData('video-editor/clip-type');
+        } else {
+            return null;
+        }
+    }, 
+    getClipHash: function(e) {
+        if (e && e.dataTransfer) {
+            return e.dataTransfer.getData('video-editor/clip-hash');
+        } else {
+            return null;
+        }
+    },
+    getDragType: function(e) {
+        if (e && e.dataTransfer) {
+            return e.dataTransfer.getData('video-editor/drag-type');
+        } else {
+            return null;
+        }
+    },
+    calculateDropPosition: function(e) {
+        // let activeElement = DragNDrop.getDraggedElement(e);
+        // if (activeElement) {
+        //     const rect = activeElement.getBoundingClientRect();
+            const containerRect = e.target.getBoundingClientRect();
+            // console.log(`rec=${rect.left} container=${containerRect.left}`)
+            let clientX = e.x - containerRect.left;
+            return (clientX / containerRect.width) * 100;
+        //     // console.log(newLeftPercent);
+        // } else {
+        //     return 0;
+        // }
     }
 };
 
@@ -111,6 +185,9 @@ const UI = {
                   });
         }
     },
+    getElementByHash: function(hash) {
+        return document.querySelector(`[item-hash="${hash}"]`);
+    },
     selectElement: function(type, hash) {
         console.debug("Selecting ", type, hash);
         let selectedElement = document.querySelector(`[item-hash].selected`);
@@ -119,6 +196,7 @@ const UI = {
             selectedElement.classList.remove('selected');
 
             if (selectedElement.getAttribute('item-hash') == hash) {
+                UI.clearItemProperties();
                 return;
             }
         }
@@ -128,6 +206,7 @@ const UI = {
         if (newSelectedElement) {
             newSelectedElement.classList.add('selected');
         }
+        UI.setupItemProperties(type, hash);
     },
     mediaIcon: function(media) {
         if (media.type == 'VIDEO') {
@@ -156,6 +235,73 @@ const UI = {
 
         return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
     },
+    clearItemProperties: function() {
+        let itemPropertiesEmpty = document.getElementById('item-properties-empty')
+        let itemProperties = document.getElementById('item-properties')
+        while(itemProperties && itemProperties.firstChild) {
+            itemProperties.removeChild(itemProperties.firstChild);
+        }
+
+        if(itemPropertiesEmpty) {
+            itemPropertiesEmpty.style['display'] = 'block';
+        }
+    },
+    setupItemProperties: function(type, hash) {
+        let itemPropertiesEmpty = document.getElementById('item-properties-empty')
+        let itemProperties = document.getElementById('item-properties')
+        while(itemProperties && itemProperties.firstChild) {
+            itemProperties.removeChild(itemProperties.firstChild);
+        }
+
+        if(itemPropertiesEmpty) {
+            itemPropertiesEmpty.style['display'] = 'none';
+        }
+
+        if (!itemProperties) {
+            console.error("Item properties could not be found!");
+        }
+
+        if(type == 'MEDIA') {
+            let media = Project.findMedia(hash);
+            if (media) {
+                itemProperties.insertAdjacentHTML('afterbegin', `<h3>Media</h3>
+                                                                 <div class="property-group">
+                                                                     <label>Clip Name</label>
+                                                                     <input type="text" disabled value="${media.name}">
+                                                                 </div>
+                                                                 <div class="property-group">
+                                                                     <label>Duration</label>
+                                                                     <input type="text" disabled value="${ UI.mediaDuration(media.duration) }">
+                                                                 </div>`);
+            } else {
+                console.error("Media cannot be found!", hash);
+            }
+        } else if (type == 'CLIP') {
+            let clip = Project.findClip(hash);
+            if (clip) {
+                itemProperties.insertAdjacentHTML('afterbegin', `<h3>Clip</h3>
+                                                                 <div class="property-group">
+                                                                     <label>Clip Name</label>
+                                                                     <input type="text" value="${clip.name}">
+                                                                 </div>
+                                                                 <div class="property-group">
+                                                                     <label>Start Time <i>(s)</i></label>
+                                                                     <input type="number" value="0.00" step="0.01">
+                                                                 </div>
+                                                                 <div class="property-group">
+                                                                     <label>Duration <i>(s)</i></label>
+                                                                     <input type="number" value="5.00" step="0.01">
+                                                                 </div>
+                                                                 <div class="property-group">
+                                                                     <label>Speed</label>
+                                                                     <input type="number" value="1.00" step="0.01" min="0.1" max="10">
+                                                                 </div>`);
+            } else {
+                console.error("Clip cannot be found!", hash);
+            }
+
+        }
+    },
     reconciliateMedias: function() {
         let mediaList = document.getElementById('media-list');
         if (!mediaList) {
@@ -181,49 +327,85 @@ const UI = {
             }
         })
     },
-    reconciliateTracks: function() {
+    reconciliateClips: function() {
         let videoTrack = document.getElementById('video-track');
         if (!videoTrack) {
-            console.error("Video Track not found!!!");
+            console.error("Video Clip not found!!!");
             return;
         }
 
         let audioTrack = document.getElementById('audio-track');
         if (!audioTrack) {
-            console.error("Audio Track not found!!!");
+            console.error("Audio Clip not found!!!");
             return;
         }
         
-        Project.allTracks().forEach(track => {
-
-            switch(track.type) {
-                case 'AUDIO':
-                    audioTrack.insertAdjacentHTML('beforeend', `<div class="clip" style="left: 5%; width: 15%;">
-                                                                   <div class="clip-content">
-                                                                       <span class="clip-name">Intro</span>
-                                                                       <div class="clip-controls">
-                                                                           <button class="clip-btn">✏️</button>
-                                                                           <button class="clip-btn">🗑️</button>
-                                                                       </div>
-                                                                   </div>
-                                                               </div>`);
-                    break;
-                case 'VIDEO':
-                    videoTrack.insertAdjacentHTML('beforeend', `<div class="clip" style="left: 5%; width: 15%;">
-                                                                   <div class="clip-content">
-                                                                       <span class="clip-name">Intro</span>
-                                                                       <div class="clip-controls">
-                                                                           <button class="clip-btn">✏️</button>
-                                                                           <button class="clip-btn">🗑️</button>
-                                                                       </div>
-                                                                   </div>
-                                                               </div>`);
-                    break;
-                default:
-                    console.error('Invalid type!', track);
-                    break;
+        Project.allClips().forEach(clip => {
+            var media = Project.findMedia(clip.mediaHash);
+            var clipElm = document.querySelector(`[item-hash="${clip.hash}"]`);
+            if (!clipElm) {
+                switch(clip.type) {
+                    case 'AUDIO':
+                        audioTrack.insertAdjacentHTML('beforeend', `<div draggable="true" class="clip" item-hash="${clip.hash}" style="left: ${ (clip.start * 100) / currentProject.duration }%; width: 15%;">
+                                                                    <div class="clip-content">
+                                                                        <span class="clip-name">${media.name}</span>
+                                                                    </div>
+                                                                </div>`);
+                        break;
+                    case 'VIDEO':
+                        videoTrack.insertAdjacentHTML('beforeend', `<div draggable="true" class="clip" item-hash="${clip.hash}" style="left: ${ (clip.start * 100) / currentProject.duration }%; width: 15%;">
+                                                                    <div class="clip-content">
+                                                                        <span class="clip-name">${media.name}</span>
+                                                                    </div>
+                                                                </div>`);
+                        break;
+                    default:
+                        console.error('Invalid type!', clip);
+                        break;
+                }
+                let clipElm = document.querySelector(`[item-hash="${clip.hash}"]`);
+                if (!clipElm) {
+                    console.error("Clip element not found!!!")
+                }
+                UI.setupElement(clipElm, 'CLIP');
             }
         });
+    }, 
+    findShadowElement: function(hash) {
+        return document.querySelector(`[item-temp-hash="${hash}"]`);
+    },
+    removeShadowComponent: function() {
+        let shadowComponent = document.querySelector(`[item-temp-hash]`);
+        if (shadowComponent) {
+            shadowComponent.parentElement.removeChild(shadowComponent);
+        }
+    },
+    updateShadowElement: function(position, hash, source, destiny) {
+        let destinyElm = null;
+        if (destiny == 'AUDIO') {
+            destinyElm = document.getElementById('audio-track');
+        } else if (destiny == 'VIDEO') {
+            destinyElm = document.getElementById('video-track');
+        } else {
+            console.error('Destiny not found!!!', arguments);
+            return;
+        }
+
+        if (source == 'MEDIA') {
+            let media = Project.findMedia(hash);
+            if (media) {
+                let previousElm = UI.findShadowElement(hash);
+                if (!previousElm) {
+                    destinyElm.insertAdjacentHTML('beforeend', `<div class="clip" item-temp-hash="${hash}" style="left: ${position}%; width: 15%;">
+                                                                <div class="clip-content">
+                                                                    <span class="clip-name">${media.name}</span>
+                                                                </div>
+                                                            </div>`);
+                } else {
+                    previousElm.style['left'] = `${position}%`;   
+                }
+            }
+        }
     }
 };
 const MediaLibrary = {
@@ -270,6 +452,22 @@ const dynamicElementsEvents = {
             }
             DragNDrop.setupMedia(hash, e);
         }
+    }, 
+    'CLIP': {
+        click: function() {
+            let hash = this.getAttribute('item-hash');
+            if (!hash) {
+                console.error("Hash not defined!!!", this);
+            }
+            UI.selectElement('CLIP', hash);
+        }, 
+        dragstart: function(e) {
+            let hash = this.getAttribute('item-hash');
+            if (!hash) {
+                console.error("Hash not defined!!!", this);
+            }
+            DragNDrop.setupClip(hash, e);
+        }
     }
 };
 
@@ -312,8 +510,32 @@ const staticElementsEvents = {
         dragover: function(e) {
             if (DragNDrop.isMedia(e) && ['AUDIO', 'VIDEO'].indexOf(DragNDrop.getMediaType(e)) != -1) {
                 this.classList.add('active');
+                // console.log(e)
+                // Get initial positions
+                let position = DragNDrop.calculateDropPosition(e);
+                if (position >= 0) {
+                    UI.updateShadowElement(position, DragNDrop.getMediaHash(e), 'MEDIA', 'AUDIO');
+                }
                 e.preventDefault();
                 e.stopPropagation();
+            } else if (DragNDrop.isClip(e) && DragNDrop.getClipType(e) == 'AUDIO') {
+                e.preventDefault();
+                e.stopPropagation();
+
+                let audioTrack = document.getElementById('audio-track');
+                // audioTrack is the container
+                // We are moving divs inside it.
+                // we need to shift the divs using lef=<value>%
+                if (!audioTrack) {
+                    console.error("Audio track not found!!!");
+                    return;
+                }
+                let parentXPos = audioTrack.getBoundingClientRect().left;
+                console.log(`clientX=${e.clientX} layerX=${e.layerX}`);
+                let elementNewXPos = e.clientX - e.layerX;
+                console.log(`parent=${parentXPos} new=${elementNewXPos}`);
+                // console
+                // console.log(e)
             }
         },
         dragleave: function(e) {
@@ -326,10 +548,15 @@ const staticElementsEvents = {
         drop: function(e) {
             if (DragNDrop.isMedia(e) && ['AUDIO', 'VIDEO'].indexOf(DragNDrop.getMediaType(e)) != -1) {
                 this.classList.remove('active');
-                Project.addTrackMedia(DragNDrop.getMediaHash(e), 'AUDIO');
+                let position = DragNDrop.calculateDropPosition(e);
+
+                UI.removeShadowComponent();
+                Project.addClipMedia(DragNDrop.getMediaHash(e), 'AUDIO', position);
                 
                 e.preventDefault();
                 e.stopPropagation();
+            } else if (DragNDrop.isClip(e) && DragNDrop.getClipType(e) == 'AUDIO') {
+                console.log(e);
             }
         }
     }, 
@@ -339,6 +566,8 @@ const staticElementsEvents = {
                 this.classList.add('active');
                 e.preventDefault();
                 e.stopPropagation();
+            } else if (DragNDrop.isClip(e) && DragNDrop.getClipType(e) == 'VIDEO') {
+                console.log(e);
             }
         },
         dragleave: function(e) {
@@ -346,12 +575,14 @@ const staticElementsEvents = {
                 this.classList.remove('active');
                 e.preventDefault();
                 e.stopPropagation();
+            } else if (DragNDrop.isClip(e) && DragNDrop.getClipType(e) == 'VIDEO') {
+                console.log(e);
             }
         },
         drop: function(e) {
             if (DragNDrop.isMedia(e) && ['VIDEO', 'IMAGE'].indexOf(DragNDrop.getMediaType(e)) != -1) {
                 this.classList.remove('active');
-                Project.addTrackMedia(DragNDrop.getMediaHash(e), 'VIDEO');
+                Project.addClipMedia(DragNDrop.getMediaHash(e), 'VIDEO');
                 e.preventDefault();
                 e.stopPropagation();
             }
@@ -391,45 +622,6 @@ document.addEventListener('DOMContentLoaded', function() {
         tab.addEventListener('click', function() {
             tabs.forEach(t => t.classList.remove('active'));
             this.classList.add('active');
-        });
-    });
-
-    // Clip selection
-    const clips = document.querySelectorAll('.clip');
-    clips.forEach(clip => {
-        clip.addEventListener('click', function(e) {
-            e.stopPropagation();
-            clips.forEach(c => c.classList.remove('selected'));
-            this.classList.add('selected');
-            
-            // Update properties panel
-            const clipName = this.querySelector('.clip-name').textContent;
-            document.getElementById('clipProperties').innerHTML = `
-                <div class="property-group">
-                    <label>Clip Name</label>
-                    <input type="text" value="${clipName}">
-                </div>
-                <div class="property-group">
-                    <label>Start Time</label>
-                    <input type="number" value="0.00" step="0.01">
-                </div>
-                <div class="property-group">
-                    <label>Duration</label>
-                    <input type="number" value="5.00" step="0.01">
-                </div>
-                <div class="property-group">
-                    <label>Speed</label>
-                    <input type="number" value="1.00" step="0.01" min="0.1" max="10">
-                </div>
-            `;
-        });
-    });
-
-    // Click on track area to deselect clips
-    document.querySelectorAll('.track-area').forEach(area => {
-        area.addEventListener('click', function() {
-            clips.forEach(c => c.classList.remove('selected'));
-            document.getElementById('clipProperties').innerHTML = '<p class="placeholder-text">Select a clip to edit properties</p>';
         });
     });
 

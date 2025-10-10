@@ -23,13 +23,15 @@ public class Project {
     private String name;
     private String description;
     private List<Media> medias;
-    private List<Track> tracks;
+    private List<Clip> clips;
+    private long duration;
     @JsonSerialize(using = MongoSerializers.InstantJacksonSerializer.class)
     private Instant createdAt;
 
     public Project() {
         this.medias = new ArrayList<>();
-        this.tracks = new ArrayList<>();
+        this.clips = new ArrayList<>();
+        this.duration = 1000 * 60 * 30; // 30 min
         this.createdAt = Instant.now();
     }
 
@@ -65,12 +67,20 @@ public class Project {
         this.medias = medias;
     }
 
-    public List<Track> getTracks() {
-        return tracks;
+    public List<Clip> getClips() {
+        return clips;
     }
 
-    public void setTracks(List<Track> tracks) {
-        this.tracks = tracks;
+    public void setClips(List<Clip> clips) {
+        this.clips = clips;
+    }
+
+    public long getDuration() {
+        return duration;
+    }
+
+    public void setDuration(long duration) {
+        this.duration = duration;
     }
 
     public Instant getCreatedAt() {
@@ -100,7 +110,7 @@ public class Project {
 
     @Override
     public String toString() {
-        return "Project[id=%s, medias=%s, tracks=%s]".formatted(id, medias, tracks);
+        return "Project[id=%s, medias=%s, clips=%s]".formatted(id, medias, clips);
     }
 
     private static final ObjectWriter mapper = JsonMapper.builder()
