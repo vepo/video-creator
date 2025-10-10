@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenShot-Style Video Editor</title>
+    <title>Video Editor</title>
     <link rel="stylesheet" href="/css/editor.css">
     <script>
         let currentProject = {project.asJson.raw ?: '{}'};
@@ -17,7 +17,7 @@
         <div class="header-left">
             <div class="logo">
                 <span class="logo-icon">🎬</span>
-                <span>OpenShot Editor</span>
+                <span>Editor</span>
             </div>
             <div class="menu-bar">
                 <div class="menu-item">File</div>
@@ -50,28 +50,17 @@
                     </div>
                 </div>
                 <div class="file-list" id="media-list">
+                {!
                     <!-- Files will be populated here -->
-                    <!--div class="file-item">
+                    <div class="file-item">
                         <div class="file-icon">🎥</div>
                         <div class="file-info">
-                            <div class="file-name">Sample Video 1.mp4</div>
+                            <div class="file-name" title="Sample Video 1.mp4">Sample Video 1.mp4</span>
+                            </div>
                             <div class="file-duration">00:30</div>
                         </div>
                     </div>
-                    <div class="file-item">
-                        <div class="file-icon">🎵</div>
-                        <div class="file-info">
-                            <div class="file-name">Background Music.mp3</div>
-                            <div class="file-duration">02:15</div>
-                        </div>
-                    </div>
-                    <div class="file-item">
-                        <div class="file-icon">🎥</div>
-                        <div class="file-info">
-                            <div class="file-name">Intro Sequence.mov</div>
-                            <div class="file-duration">00:10</div>
-                        </div>
-                    </div-->
+                !}
                 </div>
             </div>
         </div>
@@ -124,8 +113,9 @@
                                 <button class="track-btn lock-btn">🔒</button>
                             </div>
                         </div>
-                        <div class="track-area" id="videoTrack">
+                        <div class="track-area" id="video-track">
                             <div class="track-line">
+                            {!
                                 <!-- Video clips will be placed here -->
                                 <div class="clip" style="left: 5%; width: 15%;">
                                     <div class="clip-content">
@@ -145,6 +135,7 @@
                                         </div>
                                     </div>
                                 </div>
+                            !}
                             </div>
                         </div>
                     </div>
@@ -161,8 +152,9 @@
                                 <button class="track-btn lock-btn">🔒</button>
                             </div>
                         </div>
-                        <div class="track-area" id="audioTrack">
+                        <div class="track-area" id="audio-track">
                             <div class="track-line">
+                            {!
                                 <!-- Audio clips will be placed here -->
                                 <div class="clip" style="left: 10%; width: 40%; background: linear-gradient(to bottom, #e74c3c, #c0392b); border-color: #c0392b;">
                                     <div class="clip-content">
@@ -173,6 +165,7 @@
                                         </div>
                                     </div>
                                 </div>
+                            !}
                             </div>
                         </div>
                     </div>

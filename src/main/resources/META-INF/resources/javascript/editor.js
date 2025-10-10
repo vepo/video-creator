@@ -1,66 +1,231 @@
 console.log(currentProject);
-function dataTransferHasFiles(dataTransfer) {
-    return dataTransfer.items && 
-           dataTransfer.items.length > 0 && 
-           [...dataTransfer.items].some((item) => item.kind === 'file');
-}
-function mediaIcon(media) {
-    if (media.type == 'VIDEO') {
-        return '🎥';
-    } else if(media.type == 'AUDIO') {
-        return '🎵';
-    } else {
-        return '❔';
+const Hash = {
+    generate: async function(message) {
+        const textEncoder = new TextEncoder();
+        const data = textEncoder.encode(message);
+        const hashBuffer = await crypto.subtle.digest('SHA-1', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hexHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        return hexHash;
     }
-}
-
-function bindMediaDuration(duration) {
-    // Handle invalid inputs
-    if (typeof duration !== 'number' || isNaN(duration) || !isFinite(duration) || duration < 0) {
-        return '00:00:00.000';
-    }
-
-    // Ensure duration is an integer
-    duration = Math.floor(duration);
-
-    const hours = Math.floor(duration / 3600000); // 1000 * 60 * 60
-    const minutes = Math.floor((duration % 3600000) / 60000); // 1000 * 60
-    const seconds = Math.floor((duration % 60000) / 1000);
-    const milliseconds = duration % 1000;
-
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
-}
-
-function reconciliateMediaList() {
-    if (!currentProject) {
-        console.error("Loaded project not found!!!");
-        return;
-    }
-
-    if (!currentProject.medias || currentProject.medias.length == 0) {
-        console.info("No media found!!!");
-        return;
-    }
-
-    let mediaList = document.getElementById('media-list');
-    if (!mediaList) {
-        console.error("Media list not found!!!");
-        return;
-    }
-
-    currentProject.medias.forEach(media => {
-        var mediaItem = mediaList.querySelector(`[item-hash="${media.hash}"]`);
-        if (!mediaItem) {
-            mediaList.insertAdjacentHTML('beforeend', `<div class="file-item" item-hash="${media.hash}">
-                                                           <div class="file-icon">${ mediaIcon(media) }</div>
-                                                           <div class="file-info">
-                                                               <div class="file-name">${ media.name }</div>
-                                                               <div class="file-duration">${ bindMediaDuration(media.duration) }</div>
-                                                           </div>
-                                                       </div>`);
+};
+const Project = {
+    findMedia: function(hash) {
+        if (currentProject && currentProject.medias && currentProject.medias.length > 0) {
+            return currentProject.medias.find(m => m.hash == hash);
         }
-    })
-}
+        return null;
+    }, 
+    allMedias: function() {
+        if (!currentProject) {
+            console.error("Loaded project not found!!!");
+            return [];
+        }
+
+        if (!currentProject.medias || currentProject.medias.length == 0) {
+            console.info("No media found!!!");
+            return [];
+        }
+
+        return currentProject.medias;
+    },
+    allTracks: function() {
+        if (!currentProject) {
+            console.error("Loaded project not found!!!");
+            return [];
+        }
+
+        if (!currentProject.tracks || currentProject.tracks.length == 0) {
+            console.info("No track found!!!");
+            return [];
+        }
+
+        return currentProject.tracks;
+    },
+    addTrackMedia: function(hash, track) {
+        let media = Project.findMedia(hash);
+        if(!media) {
+            console.error('Media not found!!!', hash);
+            return;
+        }
+
+        if (!currentProject.tracks) {
+            currentProject.tracks = [];
+        }
+        Hash.generate(`${media.hash}-${currentProject.tracks.length}`)
+            .then(trackHash => {
+                console.log(trackHash);
+                currentProject.tracks.push({
+                    hash: trackHash,
+                    mediaHash: media.hash,
+                    duration: media.duration,
+                    type: track
+                });
+                UI.reconciliateTracks();
+            });
+    }
+};
+
+const DragNDrop = {
+    isMediaFile: function(e) {
+        return e.dataTransfer && 
+               e.dataTransfer.items && 
+               e.dataTransfer.items.length > 0 && 
+               [...e.dataTransfer.items].some((item) => item.kind === 'file');
+    }, 
+    isMedia: function(e) {
+        return e.dataTransfer && e.dataTransfer.getData('video-editor/media-hash');
+    },
+    setupMedia: function(hash, e) {
+        let media = Project.findMedia(hash);
+        console.debug("Media", media);
+        if (!media) {
+            console.error("Media not found!!!", hash);
+        }
+        e.dataTransfer.setData('video-editor/media-hash', hash);
+        e.dataTransfer.setData('video-editor/media-type', media.type);
+    }, 
+    getMediaType: function(e) {
+        if (e && e.dataTransfer) {
+            return e.dataTransfer.getData('video-editor/media-type');
+        } else {
+            return null;
+        }
+    }, 
+    getMediaHash: function(e) {
+        if (e && e.dataTransfer) {
+            return e.dataTransfer.getData('video-editor/media-hash');
+        } else {
+            return null;
+        }
+    }
+};
+
+const UI = {
+    setupElement: function(elm, type) {
+        let events = dynamicElementsEvents[type];
+        if (events) {
+            Object.entries(events)
+                  .forEach(([event, handler]) => {
+                    elm.addEventListener(event, handler);
+                  });
+        }
+    },
+    selectElement: function(type, hash) {
+        console.debug("Selecting ", type, hash);
+        let selectedElement = document.querySelector(`[item-hash].selected`);
+        console.debug("Selected element", selectedElement);
+        if (selectedElement) {
+            selectedElement.classList.remove('selected');
+
+            if (selectedElement.getAttribute('item-hash') == hash) {
+                return;
+            }
+        }
+
+        let newSelectedElement = document.querySelector(`[item-hash="${hash}"]`);
+        console.debug("New selected element", newSelectedElement);
+        if (newSelectedElement) {
+            newSelectedElement.classList.add('selected');
+        }
+    },
+    mediaIcon: function(media) {
+        if (media.type == 'VIDEO') {
+            return '🎥';
+        } else if(media.type == 'AUDIO') {
+            return '🎵';
+        } else if(media.type == 'IMAGE') {
+            return '🖼️'
+        } else {
+            return '❔';
+        }
+    },
+    mediaDuration: function(duration) {
+        // Handle invalid inputs
+        if (typeof duration !== 'number' || isNaN(duration) || !isFinite(duration) || duration < 0) {
+            return '00:00:00.000';
+        }
+
+        // Ensure duration is an integer
+        duration = Math.floor(duration);
+
+        const hours = Math.floor(duration / 3600000); // 1000 * 60 * 60
+        const minutes = Math.floor((duration % 3600000) / 60000); // 1000 * 60
+        const seconds = Math.floor((duration % 60000) / 1000);
+        const milliseconds = duration % 1000;
+
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+    },
+    reconciliateMedias: function() {
+        let mediaList = document.getElementById('media-list');
+        if (!mediaList) {
+            console.error("Media list not found!!!");
+            return;
+        }
+        Project.allMedias().forEach(media => {
+            var mediaItem = mediaList.querySelector(`[item-hash="${media.hash}"]`);
+            if (!mediaItem) {
+                // onclick="selectElement('MEDIA', '${media.hash}')" 
+                mediaList.insertAdjacentHTML('beforeend', `<div draggable="true" class="file-item" item-hash="${media.hash}">
+                                                            <div class="file-icon">${ UI.mediaIcon(media) }</div>
+                                                            <div class="file-info">
+                                                                <div class="file-name" title="${ media.name }">${ media.name }</div>
+                                                                <div class="file-duration">${ UI.mediaDuration(media.duration) }</div>
+                                                            </div>
+                                                        </div>`);
+                let mediaElm = document.querySelector(`[item-hash="${media.hash}"]`);
+                if (!mediaElm) {
+                    console.error("Element not added!!!");
+                }
+                UI.setupElement(mediaElm, 'MEDIA');
+            }
+        })
+    },
+    reconciliateTracks: function() {
+        let videoTrack = document.getElementById('video-track');
+        if (!videoTrack) {
+            console.error("Video Track not found!!!");
+            return;
+        }
+
+        let audioTrack = document.getElementById('audio-track');
+        if (!audioTrack) {
+            console.error("Audio Track not found!!!");
+            return;
+        }
+        
+        Project.allTracks().forEach(track => {
+
+            switch(track.type) {
+                case 'AUDIO':
+                    audioTrack.insertAdjacentHTML('beforeend', `<div class="clip" style="left: 5%; width: 15%;">
+                                                                   <div class="clip-content">
+                                                                       <span class="clip-name">Intro</span>
+                                                                       <div class="clip-controls">
+                                                                           <button class="clip-btn">✏️</button>
+                                                                           <button class="clip-btn">🗑️</button>
+                                                                       </div>
+                                                                   </div>
+                                                               </div>`);
+                    break;
+                case 'VIDEO':
+                    videoTrack.insertAdjacentHTML('beforeend', `<div class="clip" style="left: 5%; width: 15%;">
+                                                                   <div class="clip-content">
+                                                                       <span class="clip-name">Intro</span>
+                                                                       <div class="clip-controls">
+                                                                           <button class="clip-btn">✏️</button>
+                                                                           <button class="clip-btn">🗑️</button>
+                                                                       </div>
+                                                                   </div>
+                                                               </div>`);
+                    break;
+                default:
+                    console.error('Invalid type!', track);
+                    break;
+            }
+        });
+    }
+};
 const MediaLibrary = {
     add: (file) => {
         // Upload file to server
@@ -80,7 +245,7 @@ const MediaLibrary = {
                 return;
             }
             currentProject.medias.push(data)
-            reconciliateMediaList();
+            UI.reconciliateMedias();
         })
         .catch(error => {
             console.error('Error:', error);
@@ -89,10 +254,29 @@ const MediaLibrary = {
     }
 }
 
-const events = {
+const dynamicElementsEvents = {
+    'MEDIA': {
+        click: function() {
+            let hash = this.getAttribute('item-hash');
+            if (!hash) {
+                console.error("Hash not defined!!!", this);
+            }
+            UI.selectElement('MEDIA', hash);
+        }, 
+        dragstart: function(e) {
+            let hash = this.getAttribute('item-hash');
+            if (!hash) {
+                console.error("Hash not defined!!!", this);
+            }
+            DragNDrop.setupMedia(hash, e);
+        }
+    }
+};
+
+const staticElementsEvents = {
     'project-files-container': {
-        'dragover': function(e) {
-            if (e.dataTransfer && dataTransferHasFiles(e.dataTransfer)) {
+        dragover: function(e) {
+            if (DragNDrop.isMediaFile(e)) {
                 let dropContainer = document.querySelector('.project-panel .drop-zone');
                 if (dropContainer) {
                     dropContainer.classList.add('enabled');
@@ -101,8 +285,8 @@ const events = {
                 e.stopPropagation();
             }
         },
-        'dragleave': function(e) {
-            if (e.dataTransfer && dataTransferHasFiles(e.dataTransfer)) {
+        dragleave: function(e) {
+            if (DragNDrop.isMediaFile(e)) {
                 let dropContainer = document.querySelector('.project-panel .drop-zone');
                 if (dropContainer) {
                     dropContainer.classList.remove('enabled');
@@ -111,8 +295,8 @@ const events = {
                 e.stopPropagation();
             }
         },
-        'drop': function(e) {
-            if (e.dataTransfer && dataTransferHasFiles(e.dataTransfer)) {
+        drop: function(e) {
+            if (DragNDrop.isMediaFile(e)) {
                 let dropContainer = document.querySelector('.project-panel .drop-zone');
                 if (dropContainer) {
                     dropContainer.classList.remove('enabled');
@@ -123,22 +307,73 @@ const events = {
                 [...e.dataTransfer.items].forEach((file) => MediaLibrary.add(file.getAsFile()));
             }
         }
+    }, 
+    'audio-track': {
+        dragover: function(e) {
+            if (DragNDrop.isMedia(e) && ['AUDIO', 'VIDEO'].indexOf(DragNDrop.getMediaType(e)) != -1) {
+                this.classList.add('active');
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        },
+        dragleave: function(e) {
+            if (DragNDrop.isMedia(e) && ['AUDIO', 'VIDEO'].indexOf(DragNDrop.getMediaType(e)) != -1) {
+                this.classList.remove('active');
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        },
+        drop: function(e) {
+            if (DragNDrop.isMedia(e) && ['AUDIO', 'VIDEO'].indexOf(DragNDrop.getMediaType(e)) != -1) {
+                this.classList.remove('active');
+                Project.addTrackMedia(DragNDrop.getMediaHash(e), 'AUDIO');
+                
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }
+    }, 
+    'video-track': {
+        dragover: function(e) {
+            if (DragNDrop.isMedia(e) && ['VIDEO', 'IMAGE'].indexOf(DragNDrop.getMediaType(e)) != -1) {
+                this.classList.add('active');
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        },
+        dragleave: function(e) {
+            if (DragNDrop.isMedia(e) && ['VIDEO', 'IMAGE'].indexOf(DragNDrop.getMediaType(e)) != -1) {
+                this.classList.remove('active');
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        },
+        drop: function(e) {
+            if (DragNDrop.isMedia(e) && ['VIDEO', 'IMAGE'].indexOf(DragNDrop.getMediaType(e)) != -1) {
+                this.classList.remove('active');
+                Project.addTrackMedia(DragNDrop.getMediaHash(e), 'VIDEO');
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }
+        
     }
 }
 // Simple script for basic interactions
 document.addEventListener('DOMContentLoaded', function() {
 
     // setup UI elements events handlers
-    Object.entries(events).forEach(([element, events]) => {
-        let elm = document.getElementById(element);
-        if (elm) {
-            Object.entries(events).forEach(([event, handler]) => {
-                elm.addEventListener(event, handler);
-            });
-        }
-    });
+    Object.entries(staticElementsEvents)
+          .forEach(([element, events]) => {
+              let elm = document.getElementById(element);
+              if (elm) {
+                  Object.entries(events).forEach(([event, handler]) => {
+                      elm.addEventListener(event, handler);
+                  });
+              }
+          });
 
-    reconciliateMediaList();
+    UI.reconciliateMedias();
 
     // Generate time ruler marks
     const rulerMarks = document.getElementById('rulerMarks');

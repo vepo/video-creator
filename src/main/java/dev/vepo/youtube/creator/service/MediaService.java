@@ -39,6 +39,7 @@ public class MediaService {
         return switch (MediaType.load(mimeType)) {
             case AUDIO -> retrieveAudioDuration(content);
             case VIDEO -> retrieveVideoDuration(content);
+            case IMAGE -> 0l;
             default -> -1l;
         };
     }

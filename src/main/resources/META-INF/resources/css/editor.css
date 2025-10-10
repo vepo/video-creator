@@ -4,6 +4,13 @@
     padding: 0;
     box-sizing: border-box;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    -webkit-touch-callout: none; /* iOS Safari */
+      -webkit-user-select: none; /* Safari */
+       -khtml-user-select: none; /* Konqueror HTML */
+         -moz-user-select: none; /* Old versions of Firefox */
+          -ms-user-select: none; /* Internet Explorer/Edge */
+              user-select: none; /* Non-prefixed version, currently
+                                    supported by Chrome, Edge, Opera and Firefox */
 }
 
 body {
@@ -172,12 +179,17 @@ body {
 .file-item {
     padding: 8px 10px;
     background: #243342;
+    border: 2px solid #243342;
     border-radius: 4px;
     cursor: pointer;
     display: flex;
     align-items: center;
     gap: 10px;
     transition: background 0.2s;
+}
+
+.file-item.selected {
+    border: 2px solid #f39c12;
 }
 
 .file-item:hover {
@@ -191,6 +203,7 @@ body {
 
 .file-info {
     flex: 1;
+    max-width: calc(100% - 1rem);
 }
 
 .file-name {
@@ -198,6 +211,7 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: calc(100% - 10px);
 }
 
 .file-duration {
@@ -352,6 +366,10 @@ body {
     height: 70px;
     position: relative;
     background: #1a2a3a;
+}
+
+.track-area.active {
+    background-color: #335271;
 }
 
 .track-line {
