@@ -161,17 +161,13 @@ const DragNDrop = {
         }
     },
     calculateDropPosition: function(e) {
-        // let activeElement = DragNDrop.getDraggedElement(e);
-        // if (activeElement) {
-        //     const rect = activeElement.getBoundingClientRect();
-            const containerRect = e.target.getBoundingClientRect();
-            // console.log(`rec=${rect.left} container=${containerRect.left}`)
-            let clientX = e.x - containerRect.left;
-            return (clientX / containerRect.width) * 100;
-        //     // console.log(newLeftPercent);
-        // } else {
-        //     return 0;
-        // }
+        let target = e.target;
+        while (!target.classList.contains('track-line')) {
+            target = target.parentElement;
+        }
+        const containerRect = target.getBoundingClientRect();
+        let clientX = e.x - containerRect.left;
+        return (clientX / containerRect.width) * 100;
     }
 };
 
@@ -328,13 +324,13 @@ const UI = {
         })
     },
     reconciliateClips: function() {
-        let videoTrack = document.getElementById('video-track');
+        let videoTrack = document.querySelector('#video-track .track-line');
         if (!videoTrack) {
             console.error("Video Clip not found!!!");
             return;
         }
 
-        let audioTrack = document.getElementById('audio-track');
+        let audioTrack = document.querySelector('#audio-track .track-line');
         if (!audioTrack) {
             console.error("Audio Clip not found!!!");
             return;
@@ -346,14 +342,14 @@ const UI = {
             if (!clipElm) {
                 switch(clip.type) {
                     case 'AUDIO':
-                        audioTrack.insertAdjacentHTML('beforeend', `<div draggable="true" class="clip" item-hash="${clip.hash}" style="left: ${ (clip.start * 100) / currentProject.duration }%; width: 15%;">
+                        audioTrack.insertAdjacentHTML('beforeend', `<div draggable="true" class="clip" item-hash="${clip.hash}" style="left: ${ (clip.start * 100) / currentProject.duration }%; width: ${(clip.duration * 100) / currentProject.duration}%;">
                                                                     <div class="clip-content">
                                                                         <span class="clip-name">${media.name}</span>
                                                                     </div>
                                                                 </div>`);
                         break;
                     case 'VIDEO':
-                        videoTrack.insertAdjacentHTML('beforeend', `<div draggable="true" class="clip" item-hash="${clip.hash}" style="left: ${ (clip.start * 100) / currentProject.duration }%; width: 15%;">
+                        videoTrack.insertAdjacentHTML('beforeend', `<div draggable="true" class="clip" item-hash="${clip.hash}" style="left: ${ (clip.start * 100) / currentProject.duration }%; width: ${(clip.duration * 100) / currentProject.duration}%;">
                                                                     <div class="clip-content">
                                                                         <span class="clip-name">${media.name}</span>
                                                                     </div>
@@ -383,9 +379,9 @@ const UI = {
     updateShadowElement: function(position, hash, source, destiny) {
         let destinyElm = null;
         if (destiny == 'AUDIO') {
-            destinyElm = document.getElementById('audio-track');
+            destinyElm = document.querySelector('#audio-track .track-line');
         } else if (destiny == 'VIDEO') {
-            destinyElm = document.getElementById('video-track');
+            destinyElm = document.querySelector('#video-track .track-line');
         } else {
             console.error('Destiny not found!!!', arguments);
             return;
@@ -396,7 +392,7 @@ const UI = {
             if (media) {
                 let previousElm = UI.findShadowElement(hash);
                 if (!previousElm) {
-                    destinyElm.insertAdjacentHTML('beforeend', `<div class="clip" item-temp-hash="${hash}" style="left: ${position}%; width: 15%;">
+                    destinyElm.insertAdjacentHTML('beforeend', `<div class="clip" item-temp-hash="${hash}" style="left: ${position}%; width: ${(media.duration * 100) / currentProject.duration}%;">
                                                                 <div class="clip-content">
                                                                     <span class="clip-name">${media.name}</span>
                                                                 </div>
@@ -508,10 +504,12 @@ const staticElementsEvents = {
     }, 
     'audio-track': {
         dragover: function(e) {
+            if (!e.target.classList.contains('track-line')) {
+                // ignore
+                return;
+            }
             if (DragNDrop.isMedia(e) && ['AUDIO', 'VIDEO'].indexOf(DragNDrop.getMediaType(e)) != -1) {
-                this.classList.add('active');
-                // console.log(e)
-                // Get initial positions
+                this.classList.add('active');                
                 let position = DragNDrop.calculateDropPosition(e);
                 if (position >= 0) {
                     UI.updateShadowElement(position, DragNDrop.getMediaHash(e), 'MEDIA', 'AUDIO');
@@ -539,13 +537,22 @@ const staticElementsEvents = {
             }
         },
         dragleave: function(e) {
+            if (!e.target.classList.contains('track-line')) {
+                // ignore
+                return;
+            }
             if (DragNDrop.isMedia(e) && ['AUDIO', 'VIDEO'].indexOf(DragNDrop.getMediaType(e)) != -1) {
                 this.classList.remove('active');
                 e.preventDefault();
                 e.stopPropagation();
+                UI.removeShadowComponent();
             }
         },
         drop: function(e) {
+            if (!e.target.classList.contains('track-line')) {
+                // ignore
+                return;
+            }
             if (DragNDrop.isMedia(e) && ['AUDIO', 'VIDEO'].indexOf(DragNDrop.getMediaType(e)) != -1) {
                 this.classList.remove('active');
                 let position = DragNDrop.calculateDropPosition(e);
@@ -562,8 +569,16 @@ const staticElementsEvents = {
     }, 
     'video-track': {
         dragover: function(e) {
+            if (!e.target.classList.contains('track-line')) {
+                // ignore
+                return;
+            }
             if (DragNDrop.isMedia(e) && ['VIDEO', 'IMAGE'].indexOf(DragNDrop.getMediaType(e)) != -1) {
-                this.classList.add('active');
+                this.classList.add('active');                
+                let position = DragNDrop.calculateDropPosition(e);
+                if (position >= 0) {
+                    UI.updateShadowElement(position, DragNDrop.getMediaHash(e), 'MEDIA', 'VIDEO');
+                }
                 e.preventDefault();
                 e.stopPropagation();
             } else if (DragNDrop.isClip(e) && DragNDrop.getClipType(e) == 'VIDEO') {
@@ -571,18 +586,29 @@ const staticElementsEvents = {
             }
         },
         dragleave: function(e) {
+            if (!e.target.classList.contains('track-line')) {
+                // ignore
+                return;
+            }
             if (DragNDrop.isMedia(e) && ['VIDEO', 'IMAGE'].indexOf(DragNDrop.getMediaType(e)) != -1) {
                 this.classList.remove('active');
                 e.preventDefault();
                 e.stopPropagation();
+                UI.removeShadowComponent();
             } else if (DragNDrop.isClip(e) && DragNDrop.getClipType(e) == 'VIDEO') {
                 console.log(e);
             }
         },
         drop: function(e) {
+            if (!e.target.classList.contains('track-line')) {
+                // ignore
+                return;
+            }
             if (DragNDrop.isMedia(e) && ['VIDEO', 'IMAGE'].indexOf(DragNDrop.getMediaType(e)) != -1) {
                 this.classList.remove('active');
-                Project.addClipMedia(DragNDrop.getMediaHash(e), 'VIDEO');
+                let position = DragNDrop.calculateDropPosition(e);
+                UI.removeShadowComponent();
+                Project.addClipMedia(DragNDrop.getMediaHash(e), 'VIDEO', position);
                 e.preventDefault();
                 e.stopPropagation();
             }
