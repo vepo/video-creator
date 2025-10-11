@@ -60,7 +60,6 @@ const Project = {
         }
         Hash.generate(`${media.hash}-${currentProject.clips.length}`)
             .then(clipHash => {
-                console.log(clipHash);
                 currentProject.clips.push({
                     name: '',
                     hash: clipHash,
@@ -71,7 +70,6 @@ const Project = {
                     speed: 1,
                     duration: media.duration
                 });
-                console.log(currentProject.clips);
                 UI.reconciliateClips();
             });
     }
@@ -91,7 +89,6 @@ const DragNDrop = {
     },
     setupMedia: function(hash, e) {
         let media = Project.findMedia(hash);
-        console.debug("Media", media);
         if (!media) {
             console.error("Media not found!!!", hash);
         }
@@ -161,13 +158,26 @@ const DragNDrop = {
         }
     },
     calculateDropPosition: function(e) {
-        let target = e.target;
+        let target = e.realTarget || e.target;
         while (!target.classList.contains('track-line')) {
             target = target.parentElement;
         }
         const containerRect = target.getBoundingClientRect();
         let clientX = e.x - containerRect.left;
         return (clientX / containerRect.width) * 100;
+    },
+    verifyEventClass: function(e, requiredClass) {
+        let currentTarget = e.realTarget || e.target;                
+        if (currentTarget.classList.contains(requiredClass)) {
+            return;
+        }
+        let closestElm = currentTarget.closest(`.${requiredClass}`);
+        if (closestElm) {
+            e.realTarget = closestElm;
+            return;
+        } 
+        console.error("Not captured?!?!")
+        return;
     }
 };
 
@@ -185,7 +195,6 @@ const UI = {
         return document.querySelector(`[item-hash="${hash}"]`);
     },
     selectElement: function(type, hash) {
-        console.debug("Selecting ", type, hash);
         let selectedElement = document.querySelector(`[item-hash].selected`);
         console.debug("Selected element", selectedElement);
         if (selectedElement) {
@@ -198,7 +207,6 @@ const UI = {
         }
 
         let newSelectedElement = document.querySelector(`[item-hash="${hash}"]`);
-        console.debug("New selected element", newSelectedElement);
         if (newSelectedElement) {
             newSelectedElement.classList.add('selected');
         }
@@ -504,12 +512,10 @@ const staticElementsEvents = {
     }, 
     'audio-track': {
         dragover: function(e) {
-            if (!e.target.classList.contains('track-line')) {
-                // ignore
-                return;
-            }
+            DragNDrop.verifyEventClass(e, 'track-line');
             if (DragNDrop.isMedia(e) && ['AUDIO', 'VIDEO'].indexOf(DragNDrop.getMediaType(e)) != -1) {
-                this.classList.add('active');                
+                let evntElement = e.realTarget || e.target;
+                evntElement.classList.add('active');                
                 let position = DragNDrop.calculateDropPosition(e);
                 if (position >= 0) {
                     UI.updateShadowElement(position, DragNDrop.getMediaHash(e), 'MEDIA', 'AUDIO');
@@ -529,32 +535,28 @@ const staticElementsEvents = {
                     return;
                 }
                 let parentXPos = audioTrack.getBoundingClientRect().left;
-                console.log(`clientX=${e.clientX} layerX=${e.layerX}`);
-                let elementNewXPos = e.clientX - e.layerX;
-                console.log(`parent=${parentXPos} new=${elementNewXPos}`);
+                // console.log(`clientX=${e.clientX} layerX=${e.layerX}`);
+                // let elementNewXPos = e.clientX - e.layerX;
+                // console.log(`parent=${parentXPos} new=${elementNewXPos}`);
                 // console
                 // console.log(e)
             }
         },
         dragleave: function(e) {
-            if (!e.target.classList.contains('track-line')) {
-                // ignore
-                return;
-            }
+            DragNDrop.verifyEventClass(e, 'track-line');
             if (DragNDrop.isMedia(e) && ['AUDIO', 'VIDEO'].indexOf(DragNDrop.getMediaType(e)) != -1) {
-                this.classList.remove('active');
+                let evntElement = e.realTarget || e.target;
+                evntElement.classList.remove('active');
                 e.preventDefault();
                 e.stopPropagation();
                 UI.removeShadowComponent();
             }
         },
         drop: function(e) {
-            if (!e.target.classList.contains('track-line')) {
-                // ignore
-                return;
-            }
+            DragNDrop.verifyEventClass(e, 'track-line');
             if (DragNDrop.isMedia(e) && ['AUDIO', 'VIDEO'].indexOf(DragNDrop.getMediaType(e)) != -1) {
-                this.classList.remove('active');
+                let evntElement = e.realTarget || e.target;
+                evntElement.classList.remove('active');
                 let position = DragNDrop.calculateDropPosition(e);
 
                 UI.removeShadowComponent();
@@ -569,12 +571,10 @@ const staticElementsEvents = {
     }, 
     'video-track': {
         dragover: function(e) {
-            if (!e.target.classList.contains('track-line')) {
-                // ignore
-                return;
-            }
+            DragNDrop.verifyEventClass(e, 'track-line');
             if (DragNDrop.isMedia(e) && ['VIDEO', 'IMAGE'].indexOf(DragNDrop.getMediaType(e)) != -1) {
-                this.classList.add('active');                
+                let evntElement = e.realTarget || e.target;
+                evntElement.classList.add('active');                
                 let position = DragNDrop.calculateDropPosition(e);
                 if (position >= 0) {
                     UI.updateShadowElement(position, DragNDrop.getMediaHash(e), 'MEDIA', 'VIDEO');
@@ -586,12 +586,10 @@ const staticElementsEvents = {
             }
         },
         dragleave: function(e) {
-            if (!e.target.classList.contains('track-line')) {
-                // ignore
-                return;
-            }
+            DragNDrop.verifyEventClass(e, 'track-line');
             if (DragNDrop.isMedia(e) && ['VIDEO', 'IMAGE'].indexOf(DragNDrop.getMediaType(e)) != -1) {
-                this.classList.remove('active');
+                let evntElement = e.realTarget || e.target;
+                evntElement.classList.remove('active');
                 e.preventDefault();
                 e.stopPropagation();
                 UI.removeShadowComponent();
@@ -600,12 +598,10 @@ const staticElementsEvents = {
             }
         },
         drop: function(e) {
-            if (!e.target.classList.contains('track-line')) {
-                // ignore
-                return;
-            }
+            DragNDrop.verifyEventClass(e, 'track-line');
             if (DragNDrop.isMedia(e) && ['VIDEO', 'IMAGE'].indexOf(DragNDrop.getMediaType(e)) != -1) {
-                this.classList.remove('active');
+                let evntElement = e.realTarget || e.target;
+                evntElement.classList.remove('active');
                 let position = DragNDrop.calculateDropPosition(e);
                 UI.removeShadowComponent();
                 Project.addClipMedia(DragNDrop.getMediaHash(e), 'VIDEO', position);
@@ -647,7 +643,8 @@ document.addEventListener('DOMContentLoaded', function() {
     tabs.forEach(tab => {
         tab.addEventListener('click', function() {
             tabs.forEach(t => t.classList.remove('active'));
-            this.classList.add('active');
+            let evntElement = e.realTarget || e.target;
+            evntElement.classList.add('active');
         });
     });
 
@@ -669,4 +666,63 @@ document.addEventListener('DOMContentLoaded', function() {
             exportModal.style.display = 'none';
         }
     });
+
+    document.addEventListener('dragover', function(e) {
+        function eventIsOverElement(evnt, element) {
+            let rects = element.getBoundingClientRect();
+            return evnt.x >= rects.x && 
+                   evnt.x <= rects.x + rects.width && 
+                   evnt.y >= rects.y && 
+                   evnt.y <= rects.y + rects.height;
+        }
+        let correctElm = ['video-track', 'audio-track'].map(id => document.getElementById(id))
+                                                       .find(elm => eventIsOverElement(e, elm));
+        if (correctElm) {
+            let track = [...correctElm.querySelectorAll('.track-line')].find(track => eventIsOverElement(e, track));
+            if (track) {
+                e.realTarget = track;
+                staticElementsEvents[correctElm.id]['dragover'](e);
+            }
+        }
+    });
+
+
+    document.addEventListener('dragleave', function(e) {
+        function eventIsOverElement(evnt, element) {
+            let rects = element.getBoundingClientRect();
+            return evnt.x >= rects.x && 
+                   evnt.x <= rects.x + rects.width && 
+                   evnt.y >= rects.y && 
+                   evnt.y <= rects.y + rects.height;
+        }
+        let correctElm = ['video-track', 'audio-track'].map(id => document.getElementById(id))
+                                                       .find(elm => eventIsOverElement(e, elm));
+        if (correctElm) {
+            let track = [...correctElm.querySelectorAll('.track-line')].find(track => eventIsOverElement(e, track));
+            if (track) {
+                e.realTarget = track;
+                staticElementsEvents[correctElm.id]['dragleave'](e);
+            }
+        }
+    });
+
+
+    document.addEventListener('drop', function(e) {
+        function eventIsOverElement(evnt, element) {
+            let rects = element.getBoundingClientRect();
+            return evnt.x >= rects.x && 
+                   evnt.x <= rects.x + rects.width && 
+                   evnt.y >= rects.y && 
+                   evnt.y <= rects.y + rects.height;
+        }
+        let correctElm = ['video-track', 'audio-track'].map(id => document.getElementById(id))
+                                                       .find(elm => eventIsOverElement(e, elm));
+        if (correctElm) {
+            let track = [...correctElm.querySelectorAll('.track-line')].find(track => eventIsOverElement(e, track));
+            if (track) {
+                e.realTarget = track;
+                staticElementsEvents[correctElm.id]['drop'](e);
+            }
+        }
+    })
 });

@@ -375,6 +375,7 @@ body {
 .track-line {
     height: 100%;
     position: relative;
+    z-index: 10;
     background: repeating-linear-gradient(
         90deg,
         transparent,
