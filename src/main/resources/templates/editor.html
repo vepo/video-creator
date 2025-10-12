@@ -92,8 +92,13 @@
                         <button class="btn btn-secondary">🔍-</button>
                         <button class="btn btn-secondary">📐 Fit</button>
                     </div>
+                    <div class="timeline-zoom-level">
+                        <span>Zoom: 100%</span>
+                    </div>
                 </div>
-
+                <div class="timeline-scroll">
+                    <div class="scroll-handle"></div>
+                </div>
                 <div class="timeline-ruler">
                     <div class="ruler-marks" id="rulerMarks">
                         <!-- Time marks will be generated here -->
@@ -195,23 +200,100 @@
                 <h3>Project</h3>
                 <div class="property-group">
                     <label>Name</label>
-                    <input type="text" />
+                    <input id="txt-project-name" type="text" />
                 </div>
                 <div class="property-group">
                     <label>Project Settings</label>
-                    <select>
-                        <option>1920x1080 (Full HD)</option>
-                        <option>1280x720 (HD)</option>
-                        <option>854x480 (SD)</option>
+                    <select id="cmb-screen-size">
+                        <!-- Standard Definition (SD) -->
+                        <optgroup label="Standard Definition (SD)">
+                            <option value="SD_360p">360p (640x360) - 16:9</option>
+                            <option value="SD_480p">480p (854x480) - 16:9</option>
+                            <option value="YT_RECOMMENDED_SD">Recommended SD (640x480) - 4:3</option>
+                        </optgroup>
+                        
+                        <!-- High Definition (HD) -->
+                        <optgroup label="High Definition (HD)">
+                            <option value="HD_720p" selected>720p HD (1280x720) - 16:9</option>
+                            <option value="HD_1080p">1080p Full HD (1920x1080) - 16:9</option>
+                            <option value="YT_RECOMMENDED_HD">Recommended HD (1280x720) - 16:9</option>
+                            <option value="YT_RECOMMENDED_FULL_HD">Recommended Full HD (1920x1080) - 16:9</option>
+                        </optgroup>
+                        
+                        <!-- Ultra HD (4K/8K) -->
+                        <optgroup label="Ultra High Definition (4K/8K)">
+                            <option value="UHD_1440p">1440p 2K (2560x1440) - 16:9</option>
+                            <option value="UHD_2160p">2160p 4K (3840x2160) - 16:9</option>
+                            <option value="UHD_4320p">4320p 8K (7680x4320) - 16:9</option>
+                            <option value="YT_RECOMMENDED_4K">Recommended 4K (3840x2160) - 16:9</option>
+                        </optgroup>
+                        
+                        <!-- Vertical Video -->
+                        <optgroup label="Vertical Video">
+                            <option value="VERTICAL_360p">360p Vertical (360x640) - 9:16</option>
+                            <option value="VERTICAL_720p">720p Vertical (720x1280) - 9:16</option>
+                            <option value="VERTICAL_1080p">1080p Vertical (1080x1920) - 9:16</option>
+                        </optgroup>
+                        
+                        <!-- Square Video -->
+                        <optgroup label="Square Video">
+                            <option value="SQUARE_480p">480p Square (480x480) - 1:1</option>
+                            <option value="SQUARE_720p">720p Square (720x720) - 1:1</option>
+                            <option value="SQUARE_1080p">1080p Square (1080x1080) - 1:1</option>
+                        </optgroup>
+                        
+                        <!-- YouTube Shorts -->
+                        <optgroup label="YouTube Shorts">
+                            <option value="SHORTS_1080x1920">YouTube Shorts (1080x1920) - 9:16</option>
+                        </optgroup>
                     </select>
                 </div>
                 <div class="property-group">
                     <label>Frame Rate</label>
-                    <select>
-                        <option>60 fps</option>
-                        <option>30 fps</option>
-                        <option>25 fps</option>
+                    <select id="cmb-frame-rate">
+                        <!-- Film & Cinema -->
+                        <optgroup label="🎞️ Film & Cinema">
+                            <option value="FPS_24">24 FPS - Traditional Film Standard</option>
+                            <option value="FPS_23_976">23.976 FPS - Film (NTSC)</option>
+                        </optgroup>
+                        
+                        <!-- Broadcast Standards -->
+                        <optgroup label="📺 Broadcast Standards">
+                            <option value="FPS_25">25 FPS - PAL (Europe, Asia, Australia)</option>
+                            <option value="FPS_30">30 FPS - NTSC (North America, Japan)</option>
+                            <option value="FPS_29_97">29.97 FPS - NTSC Broadcast</option>
+                        </optgroup>
+                        
+                        <!-- High Frame Rate -->
+                        <optgroup label="⚡ High Frame Rate">
+                            <option value="FPS_50">50 FPS - PAL High</option>
+                            <option value="FPS_59_94">59.94 FPS - NTSC High</option>
+                            <option value="FPS_60">60 FPS - Smooth Action</option>
+                        </optgroup>
+                        
+                        <!-- Ultra High Frame Rate -->
+                        <optgroup label="🚀 Ultra High Frame Rate">
+                            <option value="FPS_120">120 FPS - Slow Motion</option>
+                            <option value="FPS_240">240 FPS - Super Slow Motion</option>
+                            <option value="FPS_480">480 FPS - Extreme Slow Motion</option>
+                        </optgroup>
+                        
+                        <!-- Web & Streaming -->
+                        <optgroup label="🌐 Web & Streaming">
+                            <option value="FPS_24_WEB">24 FPS - Film Style</option>
+                            <option value="FPS_30_WEB" selected>30 FPS - Standard Streaming</option>
+                            <option value="FPS_60_WEB">60 FPS - Gaming & Sports</option>
+                        </optgroup>
                     </select>
+                </div>
+                <div class="property-group">
+                    <label>Duration</label>
+                    <div id="dur-project" class="duration-controller">
+                        <input class="hours"   type="number" step="1" min="1" max="5" />
+                        <input class="minutes" type="number" step="1" min="1" max="59" />
+                        <input class="seconds" type="number" step="1" min="1" max="59" />
+                        <input class="millis"  type="number" step="1" min="1" max="999" />
+                    </div>
                 </div>
             </div>
         </div>

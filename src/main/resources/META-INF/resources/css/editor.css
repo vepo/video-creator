@@ -286,16 +286,54 @@ body {
 .ruler-marks {
     height: 100%;
     position: relative;
+    white-space: nowrap;
 }
 
 .time-mark {
     position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0 5px;
     font-size: 11px;
     color: #95a5a6;
-    padding: 0 5px;
+    border-left: 1px solid #34495e;
 }
+
+.timeline-scroll {
+    position: relative;
+    background: #34495e;
+    cursor: pointer;
+    height: 15px;
+    margin: 0 0.3rem;
+    border-radius: 4px;
+}
+
+.timeline-scroll .scroll-handle:fit {
+    width: 100%;
+    cursor: default;
+}
+
+.timeline-scroll .scroll-handle {
+    height: 100%;
+    width: 10%;
+    cursor: pointer;
+    background: #3498db;
+    border-radius: 7px;
+    transition: all 0.2s ease;
+    min-width: 20px;
+    position: absolute;
+}
+
+.timeline-scroll .scroll-handle:hover {
+    background: #2980b9;
+}
+
+.timeline-scroll .scroll-handle:active {
+    background: #21618c;
+}
+
 
 .time-mark::before {
     content: '';
@@ -376,12 +414,21 @@ body {
     height: 100%;
     position: relative;
     z-index: 10;
+    transition: transform 0.2s ease;
     background: repeating-linear-gradient(
         90deg,
         transparent,
         transparent 29px,
         rgba(52, 73, 94, 0.3) 30px
     );
+}
+
+/* Zoom level indicator */
+.timeline-header .timeline-zoom-level {
+    float: right;
+    font-size: 12px;
+    color: #95a5a6;
+    margin-left: 10px;
 }
 
 /* Clips */
@@ -545,6 +592,17 @@ body {
     border-color: #3498db;
 }
 
+.property-group input[type="number"]::-webkit-outer-spin-button,
+.property-group input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+    padding: 0;
+}
+
+.property-group input[type="number"] {
+    -moz-appearance: textfield;
+}
+
 .placeholder-text {
     color: #7f8c8d;
     font-style: italic;
@@ -695,4 +753,67 @@ body {
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+.duration-controller {
+    display: flex;
+    columns: 4;
+    font-size: 0.9rem;
+}
+
+.duration-controller > input,
+.duration-controller > div {
+    font-size: 0.6rem;
+    flex-grow: 1;
+}
+
+.duration-controller > div {
+    position: relative;
+}
+
+.duration-controller > div > div.buttons {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 15px;
+    bottom: 0;
+    max-height: 100%;
+}
+
+.duration-controller > div > div.buttons > button {
+    height: 50%;
+    width: 100%;
+    font-size: 0.6rem;
+    border: none;
+    color: #ecf0f1;
+    background: #243342;
+    border: 1px solid #34495e;
+}
+
+.duration-controller > div > div.buttons > button:disabled:hover,
+.duration-controller > div > div.buttons > button:disabled {
+    background-color: #415C76;
+    cursor: default;
+}
+
+.duration-controller > div > div.buttons > button:focus {
+    outline: none;
+}
+
+.duration-controller > div > div.buttons > button:hover {
+    background: rgba(52, 73, 94, 0.5);
+    cursor: pointer;
+}
+
+.duration-controller > div > div.buttons > button:first-child {
+    border-top-right-radius: 4px;
+}
+
+.duration-controller > div > div.buttons > button:last-child {
+    border-bottom-right-radius: 4px;
+}
+
+.duration-controller > input:not(:last-child),
+.duration-controller > div:not(:last-child) {
+    margin-right: 0.5rem;
 }

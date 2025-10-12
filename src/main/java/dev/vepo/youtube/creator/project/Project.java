@@ -1,6 +1,8 @@
 package dev.vepo.youtube.creator.project;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -25,13 +27,18 @@ public class Project {
     private List<Media> medias;
     private List<Clip> clips;
     private long duration;
+    private ScreenSize screenSize;
+    private FrameRate frameRate;
     @JsonSerialize(using = MongoSerializers.InstantJacksonSerializer.class)
     private Instant createdAt;
 
     public Project() {
+        this.name = "Project %s".formatted(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss").format(LocalDateTime.now()));
         this.medias = new ArrayList<>();
         this.clips = new ArrayList<>();
         this.duration = 1000 * 60 * 30; // 30 min
+        this.screenSize = ScreenSize.getDefault();
+        this.frameRate = FrameRate.getDefault();
         this.createdAt = Instant.now();
     }
 
@@ -81,6 +88,22 @@ public class Project {
 
     public void setDuration(long duration) {
         this.duration = duration;
+    }
+
+    public FrameRate getFrameRate() {
+        return frameRate;
+    }
+    
+    public void setFrameRate(FrameRate frameRate) {
+        this.frameRate = frameRate;
+    }
+
+    public ScreenSize getScreenSize() {
+        return screenSize;
+    }
+
+    public void setScreenSize(ScreenSize screenSize) {
+        this.screenSize = screenSize;
     }
 
     public Instant getCreatedAt() {

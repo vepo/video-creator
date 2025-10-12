@@ -23,7 +23,6 @@ const Project = {
         }
 
         if (!currentProject.medias || currentProject.medias.length == 0) {
-            console.info("No media found!!!");
             return [];
         }
 
@@ -66,7 +65,7 @@ const Project = {
                     mediaHash: media.hash,
                     duration: media.duration,
                     type: track,
-                    start: (currentProject.duration * position) / 100,
+                    start: Math.round(currentProject.duration * position / 100), // millis
                     speed: 1,
                     duration: media.duration
                 });
@@ -290,15 +289,15 @@ const UI = {
                                                                  </div>
                                                                  <div class="property-group">
                                                                      <label>Start Time <i>(s)</i></label>
-                                                                     <input type="number" value="0.00" step="0.01">
+                                                                     <input type="number" value="${clip.start / 1000}" step="0.001">
                                                                  </div>
                                                                  <div class="property-group">
                                                                      <label>Duration <i>(s)</i></label>
-                                                                     <input type="number" value="5.00" step="0.01">
+                                                                     <input type="text" value="${UI.mediaDuration(clip.duration)}" >
                                                                  </div>
                                                                  <div class="property-group">
                                                                      <label>Speed</label>
-                                                                     <input type="number" value="1.00" step="0.01" min="0.1" max="10">
+                                                                     <input type="number" value="${clip.speed}" step="0.01" min="0.1" max="3">
                                                                  </div>`);
             } else {
                 console.error("Clip cannot be found!", hash);
@@ -410,8 +409,382 @@ const UI = {
                 }
             }
         }
+    },    
+    bindProjectProperties: function() {
+        let txtProjectName = document.getElementById('txt-project-name');
+        if (txtProjectName) {
+            txtProjectName.value = currentProject.name;
+            txtProjectName.onchange = function() {
+                currentProject.name = txtProjectName.value;
+            }
+        }
+
+        let cmbScreenSize = document.getElementById('cmb-screen-size');
+        if (cmbScreenSize) {
+            cmbScreenSize.value = currentProject.screenSize;
+            cmbScreenSize.onchange = function() {
+                currentProject.screenSize = cmbScreenSize.value;
+            }
+        }
+
+        let cmbFrameRate = document.getElementById('cmb-frame-rate');
+        if (cmbFrameRate) {
+            cmbFrameRate.value = currentProject.frameRate;
+            cmbFrameRate.onchange = function() {
+                currentProject.frameRate = cmbFrameRate.value;
+            }
+        }
+        let durationProject = document.getElementById('dur-project');
+        if (durationProject) {
+            UI.setupDurationControl(durationProject, 
+                                    value => currentProject.duration = value, 
+                                    () => currentProject.duration);
+        }
+    }, 
+    setupDurationControl: function(root, changeListener, valueSupplier) {
+        if (!root) {
+            console.error("Duration control not found!!!");
+            return;
+        }
+
+        root.querySelectorAll('input[type="number"]:not(.setup-done)')
+            .forEach(nmbElm => {
+                nmbElm.classList.add('setup-done');
+                let nmbContainer = document.createElement('div');
+                nmbElm.parentElement.insertBefore(nmbContainer, nmbElm);
+                nmbContainer.appendChild(nmbElm);
+
+                let btnContainer = document.createElement('div');
+                btnContainer.classList.add('buttons');
+                nmbContainer.appendChild(btnContainer);
+
+                let incBtn = document.createElement('button');
+                incBtn.innerText = '+'
+                incBtn.onclick = function() {
+                    nmbElm.stepUp();
+                    var event = new Event('change');
+                    nmbElm.dispatchEvent(event);
+                };
+                btnContainer.appendChild(incBtn);
+
+                let decBtn = document.createElement('button');
+                decBtn.innerText = '-'
+                decBtn.onclick = function() {
+                    nmbElm.stepDown();
+                    var event = new Event('change');
+                    nmbElm.dispatchEvent(event);
+                };
+
+                nmbElm.updateControlButtons = function() {
+                    decBtn.disabled = nmbElm.value == 0;
+                    incBtn.disabled = nmbElm.max == nmbElm.value;
+                }
+                btnContainer.appendChild(decBtn);
+            });
+        let hoursCtrl = root.querySelector('input[type="number"].hours');
+        if (!hoursCtrl) {
+            console.error('Hours controller not found!!!!', root);
+            return;
+        }
+
+        let minutesCtrl = root.querySelector('input[type="number"].minutes');
+        if (!minutesCtrl) {
+            console.error('Minutes controller not found!!!!', root);
+            return;
+        }
+
+        let secondsCtrl = root.querySelector('input[type="number"].seconds');
+        if (!secondsCtrl) {
+            console.error('Seconds controller not found!!!!', root);
+            return;
+        }
+
+        let millisCtrl = root.querySelector('input[type="number"].millis');
+        if (!millisCtrl) {
+            console.error('Milliseconds controller not found!!!!', root);
+            return;
+        }
+
+        let value = valueSupplier();
+        let valueInMillis = value % 1000;
+        let valueInSeconds = ((value - valueInMillis) / 1000) % 60;
+        let valueInMinutes = ((value - valueInMillis - (valueInSeconds * 1000)) / (1000 * 60)) % 60;
+        let valueInHours = (value - valueInMillis - (valueInSeconds * 1000) - (valueInMinutes * 1000 * 60)) / (1000 * 60 * 60);
+
+        function durationChanged() {
+            if (this.value > this.max) {
+                this.value = this.max
+            }
+            this.updateControlButtons();
+        }
+        millisCtrl.onchange = durationChanged;
+        secondsCtrl.onchange = durationChanged;
+        minutesCtrl.onchange = durationChanged;
+        hoursCtrl.onchange = durationChanged;
+
+        millisCtrl.value = valueInMillis;
+        secondsCtrl.value = valueInSeconds;
+        minutesCtrl.value = valueInMinutes;
+        hoursCtrl.value = valueInHours;
     }
 };
+
+const TimelineZoom = {
+    zoomLevel: 1.0, // 1.0 = 100% zoom
+    minZoom: 0.1,   // 10% zoom
+    maxZoom: 5.0,   // 500% zoom
+    zoomStep: 0.2,  // 20% zoom per click
+    scrollPosition: 0, // 0-1 representing scroll position
+    pixelsPerSecond: 100, // Base pixels per second at 100% zoom
+    
+    init: function() {
+        this.setupScrollHandlers();
+        this.setupZoomControls();
+        this.updateTimelineDisplay();
+    },
+    
+    setupScrollHandlers: function() {
+        const scrollHandle = document.querySelector('.timeline-scroll .scroll-handle');
+        const timelineScroll = document.querySelector('.timeline-scroll');
+        const timelineRuler = document.querySelector('.timeline-ruler');
+        
+        if (!scrollHandle || !timelineScroll) return;
+        
+        let isDragging = false;
+        let startX = 0;
+        let startScrollLeft = 0;
+        
+        // Mouse drag handling
+        scrollHandle.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startScrollLeft = this.scrollPosition;
+            scrollHandle.style.cursor = 'grabbing';
+            e.preventDefault();
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+    
+            const startHandlePosition = scrollHandle.offsetLeft;
+            const deltaX = e.clientX - startX;
+            const scrollWidth = timelineScroll.clientWidth;
+            const handleWidth = scrollHandle.clientWidth;
+            const maxScroll = scrollWidth - handleWidth;
+            if (maxScroll > 0) {
+                const newHandlePosition = Math.max(0, Math.min(maxScroll, startHandlePosition + deltaX));
+                scrollHandle.style.left = `${newHandlePosition}px`;
+                timelineRuler.scrollLeft = deltaX + timelineRuler.scrollLeft ;
+            }
+        });
+        
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            scrollHandle.style.cursor = 'pointer';
+        });
+        
+        // Click to scroll
+        timelineScroll.addEventListener('click', (e) => {
+            if (e.target === timelineScroll) {
+                const rect = timelineScroll.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const handleWidth = scrollHandle.clientWidth;
+                
+                this.scrollPosition = Math.max(0, Math.min(1, (clickX - handleWidth / 2) / (rect.width - handleWidth)));
+                // this.updateTimelineDisplay();
+            }
+        });
+    },
+    
+    setupZoomControls: function() {
+        const zoomInBtn = document.querySelector('.timeline-controls .btn:nth-child(1)'); // 🔍+
+        const zoomOutBtn = document.querySelector('.timeline-controls .btn:nth-child(2)'); // 🔍-
+        const fitBtn = document.querySelector('.timeline-controls .btn:nth-child(3)'); // 📐 Fit
+        
+        if (zoomInBtn) {
+            zoomInBtn.addEventListener('click', () => this.zoomIn());
+        }
+        
+        if (zoomOutBtn) {
+            zoomOutBtn.addEventListener('click', () => this.zoomOut());
+        }
+        
+        if (fitBtn) {
+            fitBtn.addEventListener('click', () => this.fitToTimeline());
+        }
+        
+        // Mouse wheel zoom
+        document.querySelector('.timeline-container').addEventListener('wheel', (e) => {
+            if (e.ctrlKey) {
+                e.preventDefault();
+                if (e.deltaY < 0) {
+                    this.zoomIn();
+                } else {
+                    this.zoomOut();
+                }
+            }
+        });
+    },
+    
+    zoomIn: function() {
+        this.zoomLevel = Math.min(this.maxZoom, this.zoomLevel + this.zoomStep);
+        this.updateTimelineDisplay();
+    },
+    
+    zoomOut: function() {
+        this.zoomLevel = Math.max(this.minZoom, this.zoomLevel - this.zoomStep);
+        this.updateTimelineDisplay();
+    },
+    
+    fitToTimeline: function() {
+        // Calculate zoom level to fit entire project duration in view
+        const timelineWidth = document.querySelector('.timeline-ruler').clientWidth;
+        const totalSeconds = currentProject.duration / 1000;
+        const requiredPixelsPerSecond = timelineWidth / totalSeconds;
+        
+        this.zoomLevel = Math.max(this.minZoom, Math.min(this.maxZoom, requiredPixelsPerSecond / this.pixelsPerSecond));
+        this.scrollPosition = 0;
+        this.updateTimelineDisplay();
+    },
+    
+    updateTimelineDisplay: function() {
+        this.updateRulerMarks();
+        this.updateTrackLines();
+        this.updateScrollHandle();
+        this.updateClipPositions();
+    },
+    
+    updateRulerMarks: function() {
+        const rulerMarks = document.getElementById('rulerMarks');
+        if (!rulerMarks) return;
+        
+        // Clear existing marks
+        rulerMarks.innerHTML = '';
+        const rule_width = 60;
+        
+        console.log(TimelineZoom.zoomLevel)
+        rulerMarks.style.width = `${100 * TimelineZoom.zoomLevel}%`;
+        const totalSeconds = currentProject.duration / 1000;
+        const totalWidth = rulerMarks.offsetWidth;
+        console.log('totalWidht', totalWidth);
+        const totalMarks = totalWidth / rule_width; // each mark should have 30px;
+        // Calculate appropriate time interval based on zoom level
+        console.log(totalMarks);
+        const timeInterval = currentProject.duration / totalMarks;
+        console.log("Time interval", timeInterval)
+        
+        // Generate marks
+        for (let i = 0; i < totalMarks; i++) {
+            const time = i * timeInterval;
+            const position = (i /totalMarks) * 100;
+            
+            // const mark = document.createElement('div');
+            // mark.className = 'time-mark';
+            // mark.style.left = `${position}%x`;
+            
+            // // Format time display based on zoom level
+            // if (timeInterval >= 10) {
+            //     mark.textContent = `${Math.floor(time / 60)}:${(time % 60).toString().padStart(2, '0')}`;
+            // } else if (timeInterval >= 1) {
+            //     mark.textContent = `${Math.floor(time / 60)}:${(time % 60).toString().padStart(2, '0')}`;
+            // } else {
+            //     mark.textContent = `${Math.floor(time / 60)}:${Math.floor(time % 60)}.${Math.floor((time % 1) * 10)}`;
+            // }
+                
+            // rulerMarks.appendChild(mark);
+            rulerMarks.insertAdjacentHTML('beforeend', `<div class="time-mark" style="left: ${ position }%">x</div>`);
+        }
+    },
+    
+    updateTrackLines: function() {
+        const trackLines = document.querySelectorAll('.track-line');
+        const visibleWidth = document.querySelector('.timeline-ruler').clientWidth;
+        const totalWidth = visibleWidth * this.zoomLevel;
+        
+        trackLines.forEach(trackLine => {
+            trackLine.style.background = `repeating-linear-gradient(
+                90deg,
+                transparent,
+                transparent ${this.getGridSize() - 1}px,
+                rgba(52, 73, 94, 0.3) ${this.getGridSize()}px
+            )`;
+            trackLine.style.width = `${totalWidth}px`;
+            trackLine.style.transform = `translateX(-${this.scrollPosition * (totalWidth - visibleWidth)}px)`;
+        });
+    },
+    
+    updateScrollHandle: function() {
+        const scrollHandle = document.querySelector('.timeline-scroll .scroll-handle');
+        if (!scrollHandle) return;
+        
+        const visibleWidth = document.querySelector('.timeline-scroll').clientWidth;
+        const totalWidth = visibleWidth * this.zoomLevel;
+        
+        if (totalWidth <= visibleWidth) {
+            // Timeline fits entirely, no need for scroll
+            scrollHandle.style.width = '100%';
+            scrollHandle.style.cursor = 'default';
+        } else {
+            // Calculate handle size and position based on zoom level
+            const handleWidth = (visibleWidth / totalWidth) * 100;
+            scrollHandle.style.width = `${Math.max(20, handleWidth)}%`; // Minimum 20px width
+            scrollHandle.style.cursor = 'pointer';
+            scrollHandle.style.transform = `translateX(${this.scrollPosition * (100 - handleWidth)}%)`;
+        }
+
+        const scrollDisplay = document.querySelector('.timeline-header .timeline-zoom-level span');
+        if (scrollDisplay) {
+            scrollDisplay.innerText = `Zoom: ${ Math.round(TimelineZoom.zoomLevel * 100) }%`;
+        }
+    },
+    
+    updateClipPositions: function() {
+        const clips = document.querySelectorAll('.clip');
+        const visibleWidth = document.querySelector('.timeline-ruler').clientWidth;
+        const totalWidth = visibleWidth * this.zoomLevel;
+        
+        clips.forEach(clip => {
+            const clipHash = clip.getAttribute('item-hash');
+            const clipData = Project.findClip(clipHash);
+            
+            if (clipData) {
+                const startPercent = (clipData.start * 100) / currentProject.duration;
+                const durationPercent = (clipData.duration * 100) / currentProject.duration;
+                
+                const startPixels = (startPercent / 100) * totalWidth;
+                const durationPixels = (durationPercent / 100) * totalWidth;
+                
+                clip.style.left = `${startPixels - (this.scrollPosition * (totalWidth - visibleWidth))}px`;
+                clip.style.width = `${durationPixels}px`;
+            }
+        });
+    },
+    
+    getGridSize: function() {
+        // Return grid size in pixels based on zoom level
+        if (this.zoomLevel <= 0.3) return 100; // Large grid at low zoom
+        if (this.zoomLevel <= 1) return 50;    // Medium grid at medium zoom
+        if (this.zoomLevel <= 2) return 25;    // Small grid at high zoom
+        return 10;                             // Very small grid at very high zoom
+    },
+    
+    // Helper method to convert time to pixels
+    timeToPixels: function(timeInMillis) {
+        const totalSeconds = currentProject.duration / 1000;
+        const visibleWidth = document.querySelector('.timeline-ruler').clientWidth;
+        const totalWidth = visibleWidth * this.zoomLevel;
+        return (timeInMillis / currentProject.duration) * totalWidth;
+    },
+    
+    // Helper method to convert pixels to time
+    pixelsToTime: function(pixels) {
+        const totalSeconds = currentProject.duration / 1000;
+        const visibleWidth = document.querySelector('.timeline-ruler').clientWidth;
+        const totalWidth = visibleWidth * this.zoomLevel;
+        return (pixels / totalWidth) * currentProject.duration;
+    }
+};
+
 const MediaLibrary = {
     add: (file) => {
         // Upload file to server
@@ -625,18 +998,12 @@ document.addEventListener('DOMContentLoaded', function() {
                   });
               }
           });
+    // Initialize timeline zoom and scroll
+    TimelineZoom.init();
 
     UI.reconciliateMedias();
-
-    // Generate time ruler marks
-    const rulerMarks = document.getElementById('rulerMarks');
-    for (let i = 0; i <= 60; i += 5) {
-        const mark = document.createElement('div');
-        mark.className = 'time-mark';
-        mark.style.left = (i / 60 * 100) + '%';
-        mark.textContent = i + 's';
-        rulerMarks.appendChild(mark);
-    }
+    UI.bindProjectProperties();
+    TimelineZoom.updateRulerMarks();
 
     // Tab switching
     const tabs = document.querySelectorAll('.tab');
