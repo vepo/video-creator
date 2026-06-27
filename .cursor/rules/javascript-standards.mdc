@@ -1,0 +1,58 @@
+---
+description: JavaScript coding standards for the browser editor UI
+globs: **/*.js
+alwaysApply: false
+---
+
+# JavaScript Standards
+
+Vanilla JS only — no bundler, no frameworks. Files live in `src/main/resources/META-INF/resources/javascript/`.
+
+## Structure
+
+- Group related behavior in **namespace objects**: `const Project = { ... }`, `const UI = { ... }`.
+- Namespace names: `PascalCase`. Methods and variables: `camelCase`.
+- Use `function` for object methods; `const` / `let` for locals (prefer `const` when not reassigned).
+- Initialize on `DOMContentLoaded` in page-specific entry files (`index.js`).
+
+## DOM & Events
+
+- Wire interactivity with `addEventListener`; avoid inline `onclick` in HTML.
+- Give interactive elements stable `id` attributes; select with `document.querySelector` / `querySelectorAll`.
+- Identify timeline/media elements with `item-hash="{hash}"` for lookup via `UI.getElementByHash`.
+- Use delegated handlers from `dynamicElementsEvents` for dynamically created elements.
+
+## Drag and Drop
+
+- Namespace custom `dataTransfer` keys with the `video-editor/` prefix:
+  `video-editor/media-hash`, `video-editor/clip-hash`, `video-editor/drag-type`, etc.
+- Use `DragNDrop` helpers — do not duplicate drag-type detection logic.
+
+## Data & API
+
+- Server-rendered state is injected in the Qute template (`currentProject`); scripts read it, they do not redefine it.
+- Use `fetch` for REST calls; handle non-OK responses and surface errors in the UI.
+- Prefer `===` / `!==` for comparisons; use `async`/`await` for sequential async work.
+
+## Logging & Errors
+
+```javascript
+// ❌ BAD — alert, bare catch, debug noise in production paths
+alert('failed');
+catch (e) {}
+
+// ✅ GOOD — structured console levels, early return on missing data
+if (!media) {
+    console.error('Media not found', hash);
+    return;
+}
+console.debug('Selected element', selectedElement);
+```
+
+- `console.error` for failures; `console.debug` for diagnostics.
+- Do not leave stray `console.log` calls — remove or downgrade to `debug` before finishing.
+
+## Style
+
+- 4-space indentation; semicolons; single quotes for strings unless escaping is awkward.
+- No wildcard or global pollution beyond the declared namespace objects and `currentProject`.

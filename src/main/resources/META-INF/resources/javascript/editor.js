@@ -551,14 +551,17 @@ const TimelineZoom = {
         if (!scrollHandle || !timelineScroll) return;
         
         let isDragging = false;
-        let startX = 0;
-        let startScrollLeft = 0;
+        let startMovementX = 0;
+        let startComponentX = 0;
+        // let startScrollLeft = 0;
         
         // Mouse drag handling
         scrollHandle.addEventListener('mousedown', (e) => {
             isDragging = true;
-            startX = e.clientX;
-            startScrollLeft = this.scrollPosition;
+            startMovementX = e.clientX;
+            startComponentX = scrollHandle.offsetLeft;
+            // console.log(startMovementX);
+            // startScrollLeft = this.scrollPosition;
             scrollHandle.style.cursor = 'grabbing';
             e.preventDefault();
         });
@@ -567,7 +570,7 @@ const TimelineZoom = {
             if (!isDragging) return;
     
             const startHandlePosition = scrollHandle.offsetLeft;
-            const deltaX = e.clientX - startX;
+            const deltaX = e.clientX - startMovementX;
             const scrollWidth = timelineScroll.clientWidth;
             const handleWidth = scrollHandle.clientWidth;
             const maxScroll = scrollWidth - handleWidth;
@@ -584,16 +587,16 @@ const TimelineZoom = {
         });
         
         // Click to scroll
-        timelineScroll.addEventListener('click', (e) => {
-            if (e.target === timelineScroll) {
-                const rect = timelineScroll.getBoundingClientRect();
-                const clickX = e.clientX - rect.left;
-                const handleWidth = scrollHandle.clientWidth;
+        // timelineScroll.addEventListener('click', (e) => {
+        //     if (e.target === timelineScroll) {
+        //         const rect = timelineScroll.getBoundingClientRect();
+        //         const clickX = e.clientX - rect.left;
+        //         const handleWidth = scrollHandle.clientWidth;
                 
-                this.scrollPosition = Math.max(0, Math.min(1, (clickX - handleWidth / 2) / (rect.width - handleWidth)));
-                // this.updateTimelineDisplay();
-            }
-        });
+        //         this.scrollPosition = Math.max(0, Math.min(1, (clickX - handleWidth / 2) / (rect.width - handleWidth)));
+        //         // this.updateTimelineDisplay();
+        //     }
+        // });
     },
     
     setupZoomControls: function() {

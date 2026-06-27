@@ -1,0 +1,78 @@
+---
+description: Object-oriented design — Tell, Don't Ask principle
+globs: **/*.java
+alwaysApply: false
+---
+
+# Tell, Don't Ask
+
+Objects should **do** work, not expose state for others to decide.
+
+## Principle
+
+```java
+// ❌ ASK — controller inspects and mutates
+if (project.getMedias().size() < 10) {
+    project.getMedias().add(media);
+    projects.update(project);
+}
+
+// ✅ TELL — project enforces its own rules
+project.attachMedia(media);
+projects.save(project);
+```
+
+## Domain Behavior Belongs on Domain Types
+
+```java
+// ❌ ASK — service calculates from exposed state
+long max = project.getClips().stream()
+    .mapToLong(Clip::getEndTime)
+    .max().orElse(0);
+project.setDuration(max);
+
+// ✅ TELL
+project.recalculateDuration();
+```
+
+## Encapsulate Collections
+
+```java
+// ❌ ASK — caller can break invariants
+public List<Media> getMedias() { return medias; }
+
+// ✅ TELL — unmodifiable view + mutation methods
+public List<Media> medias() { return List.copyOf(medias); }
+public void attachMedia(Media media) { ... }
+```
+
+## Avoid Feature Envy
+
+If a method mostly reads another object's getters, move the behavior there:
+
+```java
+// ❌ Feature envy in service
+boolean canRender = timeline.getTracks().stream()
+    .anyMatch(MediaTrack::hasClips);
+
+// ✅ TELL the object that owns the data
+boolean canRender = timeline.hasContent();
+```
+
+## When Getters Are OK
+
+- Serialization (JSON, Mongo POJO codec, Qute templates).
+- Infrastructure mapping at boundaries.
+- Simple value object accessors (`screenSize.width()`).
+
+Do not chain getters across layers to make decisions — add a method on the object that owns the data.
+
+## Law of Demeter
+
+```java
+// ❌ train wreck
+project.getMedias().get(0).getMimeType()
+
+// ✅ ask the project
+project.mimeTypeOfFirstMedia()
+```

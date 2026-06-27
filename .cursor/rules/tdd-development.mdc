@@ -1,0 +1,84 @@
+---
+description: Test-driven development — feature coverage with Gherkin DSL
+alwaysApply: true
+---
+
+# TDD Development
+
+Follow **Red → Green → Refactor**. Every feature has tests; tests are organized by feature and written in **Gherkin DSL**.
+
+## Mandatory Rules
+
+1. **Every feature has tests** — no production feature without a matching `.feature` file scenario.
+2. **Tests are built from features** — one feature file per capability; scenarios describe user-visible or domain behavior, not classes.
+3. **Gherkin DSL** — each scenario is a declarative statement using `Feature`, `Scenario`, `Given`, `When`, `Then` (and `Scenario Outline` / `Examples` when data-driven).
+
+Do not merge unrelated behaviors into one scenario. Do not implement behavior without a failing scenario first.
+
+## Feature Map
+
+| Feature file | Capability |
+|--------------|------------|
+| `features/domain/project.feature` | Project defaults, equality, JSON |
+| `features/domain/screen_size.feature` | Screen size catalog |
+| `features/domain/frame_rate.feature` | Frame rate catalog |
+| `features/domain/media_type.feature` | Mime type → MediaType |
+| `features/domain/media.feature` | Media entity identity |
+| `features/timeline/timeline_project.feature` | Timeline tracks and duration |
+| `features/timeline/media_track.feature` | Track clip management |
+| `features/timeline/media_clip.feature` | Clip duration and validation |
+| `features/mlt/mlt_xml_generator.feature` | MLT XML for trim and timeline |
+| `features/persistence/projects.feature` | Project MongoDB persistence |
+| `features/api/health.feature` | MLT health endpoint |
+| `features/web/home_page.feature` | Project list page |
+| `features/web/editor.feature` | Editor page and redirects |
+| `features/web/media_upload.feature` | Multipart media upload |
+| `features/web/download.feature` | Processed file download |
+| `features/web/timeline_preview.feature` | Timeline preview API |
+| `features/web/timeline_render.feature` | Timeline render API |
+
+When adding a feature, add or extend its `.feature` file **before** production code.
+
+## Layout
+
+```
+src/test/resources/features/     ← Gherkin feature files (source of truth)
+src/test/java/.../steps/         ← Step definitions (glue code)
+src/test/java/.../support/       ← @ScenarioScope context, fixtures
+AllFeaturesTest.java          ← extends CucumberQuarkusTest (*Test.java for Surefire)
+```
+
+## Gherkin Style
+
+```gherkin
+Feature: Project creation
+  As an editor
+  I want a new project with sensible defaults
+  So that I can start editing immediately
+
+  Scenario: A new project uses Full HD and 30 FPS defaults
+    Given a newly created project
+    Then the project screen size should be Full HD 1080p
+    And the project frame rate should be 30 FPS web streaming
+    And the project should have no media attached
+```
+
+- **Given** — preconditions (declarative, present tense)
+- **When** — action under test (single trigger)
+- **Then** — observable outcome (assertable)
+- Step text must read as plain English about **what** is tested, not **how**
+
+## Step Definitions
+
+- Glue lives in `steps/`; inject services with CDI (`@Inject`).
+- Share scenario state via `@ScenarioScope` beans, not static fields.
+- Domain steps call domain objects directly; web/API steps use REST Assured.
+- Tag environment-dependent scenarios (e.g. `@requires-melt`) and skip when prerequisites are missing.
+
+## Verification
+
+```bash
+mvn test
+```
+
+All scenarios must pass before marking work complete.

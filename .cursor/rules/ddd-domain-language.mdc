@@ -1,0 +1,68 @@
+---
+description: Domain-driven design — ubiquitous language and bounded context
+globs: **/*.java
+alwaysApply: false
+---
+
+# DDD Domain Language
+
+## Ubiquitous Language
+
+Use these terms consistently in class names, methods, variables, tests, and commits:
+
+| Term | Use | Avoid |
+|------|-----|-------|
+| Project | Editing workspace | Session, Document, Workspace |
+| Media | Uploaded asset in library | File, Asset, Blob |
+| Clip | Timeline segment | Segment, Entry, Block |
+| Render | Final video output | Export, Process, Encode |
+| Preview | Short low-quality render | Thumbnail video, Sample |
+| Timeline | Ordered tracks of clips | Sequence, Playlist |
+
+## Package Boundaries
+
+| Package | Contains |
+|---------|----------|
+| `project/` | Domain entities, value objects, domain services |
+| `service/` | Application services (use-case orchestration) |
+| `model/` | Legacy API DTOs — do not add new domain concepts here |
+| `infra/` | Persistence adapters, serializers, exception mappers |
+
+New domain types belong in `project/`, not `model/`.
+
+## Aggregate: Project
+
+`Project` is the aggregate root. Mutations go through it:
+
+```java
+// ❌ BAD — anemic, logic in controller
+project.getMedias().add(media);
+projects.update(project);
+
+// ✅ GOOD — behavior on aggregate
+project.attachMedia(media);
+projectRepository.save(project);
+```
+
+## Value Objects
+
+`ScreenSize`, `FrameRate`, `MediaType` are value objects — immutable, compared by value, no identity field.
+
+## Repository Language
+
+```java
+// ✅ Domain-facing names
+Project findById(ProjectId id);
+void save(Project project);
+List<Project> findAll();
+
+// ❌ Infrastructure leaking
+MongoCollection<Project> collection();
+```
+
+## Anti-Patterns
+
+- **Anemic domain** — entities with only getters/setters and all logic in services.
+- **DTO duplication** — `TimelineProject` and `Project` describing the same concept; consolidate instead of syncing.
+- **Primitive obsession** — raw `String id` instead of typed `ProjectId` / `MediaId` for new code.
+- **Infrastructure in domain** — `@BsonId`, `@Inject`, `MongoClient` in domain classes (tolerate existing annotations; do not add more).

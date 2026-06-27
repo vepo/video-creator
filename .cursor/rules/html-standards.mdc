@@ -1,0 +1,60 @@
+---
+description: HTML and Qute template standards for server-rendered pages
+globs: **/*.{html,qute}
+alwaysApply: false
+---
+
+# HTML & Qute Standards
+
+Templates live in `src/main/resources/templates/`. Static assets are served from `META-INF/resources/`.
+
+## Document Skeleton
+
+Every page must include:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>…</title>
+    <link rel="stylesheet" href="/css/….css">
+</head>
+```
+
+- Load page scripts from `/javascript/…` in `<head>` or before `</body>`.
+- Use **inline `<script>` only** for server-injected initial state (e.g. `let currentProject = {project.asJson.raw}`).
+
+## Qute
+
+- Control flow: `{#if}`, `{#for}`, `{#else}`, `{/if}` — match existing templates.
+- Safe defaults for optional fields: `{project.name ?: 'No name'}`.
+- Raw JSON injection uses `.raw` on escaped values: `{project.asJson.raw ?: '{}'}`.
+- Comment blocks for dev placeholders: `{! … !}` — not shipped to the browser.
+
+## Semantics & Accessibility
+
+- Use semantic elements: `header`, `main`, `section`, `button` (not `div` clicks).
+- Every interactive control needs an `id` when referenced from JS.
+- Add `title` on truncated text (e.g. long filenames).
+- Prefer `class` for styling; reserve `id` for unique hooks and ARIA when needed.
+
+## CSS Classes
+
+Follow existing BEM-like naming in templates:
+
+| Pattern | Use |
+|---------|-----|
+| `btn`, `btn-primary`, `btn-secondary` | Buttons |
+| `panel-header`, `panel-content` | Editor panels |
+| `file-item`, `file-name`, `file-duration` | Media list rows |
+| `feature-card`, `feature-grid` | Home page cards |
+
+- Do not use inline `style=""` for layout — add or extend rules in `/css/`.
+- Section comments (`<!-- Header -->`) are welcome for large templates.
+
+## Assets
+
+- Stylesheets: `/css/style.css` (home), `/css/editor.css` (editor).
+- Scripts: `/javascript/index.js`, `/javascript/editor.js` — one entry script per page.

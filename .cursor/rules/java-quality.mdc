@@ -1,0 +1,65 @@
+---
+description: Java coding standards and quality for this Quarkus project
+globs: **/*.java
+alwaysApply: false
+---
+
+# Java Quality
+
+## Language & Style
+
+- Target Java 21: use `var`, records, pattern matching, and `switch` expressions where they improve clarity.
+- Prefer `final` for locals and parameters when not reassigned.
+- Use `Objects.equals`, `Objects.hash`, and `Objects.requireNonNull` consistently.
+- No wildcard imports; one top-level type per file.
+
+## Naming
+
+- Classes: `PascalCase` nouns (`VideoProcessingService`, `ScreenSize`).
+- Methods: `camelCase` verbs (`store`, `generatePreview`, `isMeltAvailable`).
+- Constants: `UPPER_SNAKE_CASE`.
+- Package: `dev.vepo.youtube.creator.<layer>`.
+
+## Error Handling
+
+```java
+// ❌ BAD — swallow, print to stderr
+catch (IOException e) { System.err.println(e); }
+
+// ✅ GOOD — log and propagate or map to domain exception
+catch (IOException e) {
+    logger.error("Failed to store media: {}", filename, e);
+    throw new MediaStorageException("Could not store %s".formatted(filename), e);
+}
+```
+
+- Never catch `Exception` unless rethrowing as a typed error at a boundary.
+- Restore interrupt flag: `Thread.currentThread().interrupt()` after `InterruptedException`.
+
+## Dependencies & Injection
+
+- Use `@Inject` constructor or field injection; services are `@ApplicationScoped`.
+- Read config through `AppConfig`, not raw `@ConfigProperty` in new code.
+- Do not instantiate services with `new` — let CDI manage lifecycle.
+
+## API Responses
+
+```java
+// ❌ BAD
+.entity("{\"error\": \"" + e.getMessage() + "\"}")
+
+// ✅ GOOD
+.entity(new ErrorResponse(e.getMessage()))
+```
+
+## Logging
+
+- Use SLF4J: `LoggerFactory.getLogger(ClassName.class)`.
+- Log at `info` for business events, `debug` for diagnostics, `error` with stack trace for failures.
+- Use parameterized messages: `logger.info("Stored media id={}", media.getMediaId())`.
+
+## Collections & Nulls
+
+- Return empty collections, not `null`.
+- Use `Optional` for single absent values at repository boundaries, not as fields or parameters.
+- Prefer immutable copies when exposing internal lists from domain objects.

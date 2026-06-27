@@ -1,0 +1,73 @@
+---
+description: Layered architecture and dependency direction for Video Creator
+alwaysApply: true
+---
+
+# Architecture Correctness
+
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) is the canonical architecture document. Keep it accurate.
+
+## Keep ARCHITECTURE.md Updated
+
+On **every change** (not only structural refactors):
+
+1. **Read** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before implementing — use it to choose layers, packages, and seams.
+2. **Implement** respecting the dependency rules below.
+3. **At the end of the task**, re-read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and update it when the change affects any of:
+   - Layer boundaries, package layout, or dependency direction
+   - Request flows, API endpoints, or delivery layer responsibilities
+   - Domain model (aggregates, entities, value objects) or migration state (Current vs Target)
+   - Persistence, storage, or configuration
+   - External integrations (`melt`, `ffmpeg`, etc.) or extension points
+   - Testing strategy per layer
+
+Do not leave architecture doc updates for a follow-up — include them in the same task when needed. Skip doc edits only when the change is purely cosmetic or clearly unrelated to system design.
+
+## Dependency Rule
+
+Dependencies point **inward** only:
+
+```
+Controllers / Resources  →  Application Services  →  Domain  ←  Infrastructure
+```
+
+| Layer | May depend on | Must NOT depend on |
+|-------|---------------|-------------------|
+| `project/` (domain) | JDK only | Quarkus, MongoDB, JAX-RS, `service/`, `infra/` |
+| `service/` | `project/`, ports | Controllers, JAX-RS types |
+| `infra/` | `project/`, external libs | Controllers |
+| Controllers/Resources | `service/`, `project/` (read-only) | Direct Mongo/GridFS, `ProcessBuilder` |
+
+## Controller Responsibilities
+
+Controllers translate HTTP only:
+
+```java
+// ❌ BAD — business logic + infrastructure in controller
+var tempDir = Files.createTempDirectory("upload");
+project.getMedias().add(media);
+projects.update(project);
+
+// ✅ GOOD — delegate to application service
+var media = projectMediaService.attachToProject(projectId, file);
+return Response.ok(media).build();
+```
+
+## Service Responsibilities
+
+- Orchestrate use cases across domain and ports.
+- `VideoProcessingService` may run `melt` — that is an infrastructure concern acceptable at this boundary until a `Renderer` port is extracted.
+- `MediaService` currently mixes GridFS (infra) with metadata probing — new code should separate probing from persistence.
+
+## Cross-Cutting
+
+- Exception mapping → `infra/` (`ExceptionMapper` implementations).
+- JSON/Mongo serialization → `infra/MongoSerializers`.
+- Configuration → `AppConfig` at root package.
+
+## Before Finishing
+
+1. Does new code respect layer boundaries?
+2. Is domain logic out of controllers?
+3. Can domain be unit-tested without Quarkus?
+4. Is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) still accurate? Update it if not (see **Keep ARCHITECTURE.md Updated** above).
