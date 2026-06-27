@@ -8,6 +8,7 @@ import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -279,6 +280,22 @@ public class MediaService {
             Files.createDirectories(tempPath);
         }
         return Files.createTempFile(tempPath, prefix, suffix);
+    }
+
+    public Path materializeMedia(Media media) throws IOException {
+        if (media == null || media.getMediaId() == null) {
+            throw new IOException("Media has no GridFS id");
+        }
+        String suffix = "";
+        if (media.getName() != null && media.getName().contains(".")) {
+            suffix = media.getName().substring(media.getName().lastIndexOf('.'));
+        }
+        Path destination = createTempFile("media-" + media.getHash(), suffix);
+        try (InputStream stream = getBucket().openDownloadStream(media.getMediaId())) {
+            Files.copy(stream, destination, StandardCopyOption.REPLACE_EXISTING);
+        }
+        logger.info("Materialized media {} to {}", media.getHash(), destination);
+        return destination;
     }
 
     public void cleanupFile(String filePath) {

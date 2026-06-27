@@ -51,6 +51,15 @@ public class WebSteps {
                         .get("/editor/" + projectId));
     }
 
+    @When("I open {string}")
+    public void openPath(String path) {
+        context.setLastResponse(
+                RestAssured.given()
+                        .redirects().follow(false)
+                        .when()
+                        .get(path));
+    }
+
     @When("I upload the test image to the project")
     public void uploadTestImage() {
         var fixture = new File("src/test/resources/fixtures/test.png");

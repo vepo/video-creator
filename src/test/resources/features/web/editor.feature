@@ -18,3 +18,13 @@ Feature: Editor page
     When I open the editor for project "000000000000000000000000"
     Then the response status should be 303
     And the location header should point to the home page
+
+  Scenario: Opening editor for invalid project id redirects to home
+    When I open the editor for project "not-a-valid-id"
+    Then the response status should be 303
+    And the location header should point to the home page
+
+  Scenario: Opening a non-existent page redirects to home
+    When I open "/unknown-page"
+    Then the response status should be 303
+    And the location header should point to the home page

@@ -40,6 +40,9 @@ public class Projects {
     }
 
     public Optional<Project> find(String id) {
+        if (id == null || id.isBlank() || !ObjectId.isValid(id)) {
+            return Optional.empty();
+        }
         return Optional.ofNullable(collection().find(Filters.eq("_id", new ObjectId(id))).first());
     }
 

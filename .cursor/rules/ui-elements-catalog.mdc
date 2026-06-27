@@ -1,0 +1,39 @@
+---
+description: Keep docs/UI_ELEMENTS.md in sync — read before UI work, update on every UI change
+alwaysApply: true
+---
+
+# UI Elements Catalog
+
+The authoritative UI inventory is [`docs/UI_ELEMENTS.md`](docs/UI_ELEMENTS.md). Every agent **must** use it when adding or changing user-facing behavior.
+
+## Before UI work
+
+1. Read `docs/UI_ELEMENTS.md` to learn existing elements, selectors, and patterns.
+2. Reuse documented selectors and shared components (`.btn`, `.panel`, `item-hash`) — do not invent parallel hooks.
+3. Cross-check [`INTERFACE_FEATURES.md`](docs/INTERFACE_FEATURES.md) for feature status; cross-check [`DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) for visual tokens.
+
+## After any UI change (required)
+
+Update `docs/UI_ELEMENTS.md` in the **same task** when you:
+
+- Add or remove a button, panel, field, modal, or dynamic template
+- Change an element's `id`, class, selector, label, or wired behavior
+- Add or rename an icon sprite symbol
+
+Each new or changed row needs: **Name**, **Selector**, **Page**, **Purpose**, **Behavior**, **Source**.
+
+If a feature adds backend-only code today but exposes UI later, add a placeholder row marked *(planned)* so the catalog stays complete.
+
+## New element checklist
+
+- [ ] Stable `id` or class documented in the catalog
+- [ ] Entry added/updated in `docs/UI_ELEMENTS.md`
+- [ ] `INTERFACE_FEATURES.md` updated if user-visible behavior changed
+- [ ] Nielsen heuristics satisfied (`nielsen-heuristics.mdc`)
+
+## Do not
+
+- Ship new UI without a catalog entry
+- Duplicate an existing element under a new name without documenting both
+- Leave removed elements listed in the catalog

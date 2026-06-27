@@ -13,29 +13,41 @@ import org.bson.types.ObjectId;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 
 import dev.vepo.youtube.creator.infra.MongoSerializers;
+import jakarta.json.bind.annotation.JsonbTypeAdapter;
+import jakarta.json.bind.annotation.JsonbTypeDeserializer;
+import jakarta.json.bind.annotation.JsonbTypeSerializer;
 
 public class Project {
     @BsonId
+    @JsonbTypeAdapter(MongoSerializers.ObjectIdJsonbAdapter.class)
     @JsonSerialize(using = MongoSerializers.ObjectIdJacksonSerializer.class)
+    @JsonDeserialize(using = MongoSerializers.ObjectIdJacksonDeserializer.class)
     private ObjectId id;
     private String name;
     private String description;
     private List<Media> medias;
     private List<Clip> clips;
+    private List<Track> tracks;
     private long duration;
     private ScreenSize screenSize;
     private FrameRate frameRate;
+    @JsonbTypeSerializer(MongoSerializers.InstantJsonbSerializer.class)
+    @JsonbTypeDeserializer(MongoSerializers.InstantJsonbDeserializer.class)
     @JsonSerialize(using = MongoSerializers.InstantJacksonSerializer.class)
+    @JsonDeserialize(using = MongoSerializers.InstantJacksonDeserializer.class)
     private Instant createdAt;
 
     public Project() {
         this.name = "Project %s".formatted(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss").format(LocalDateTime.now()));
         this.medias = new ArrayList<>();
         this.clips = new ArrayList<>();
+        this.tracks = new ArrayList<>();
+        initializeDefaultTracks();
         this.duration = 1000 * 60 * 30; // 30 min
         this.screenSize = ScreenSize.getDefault();
         this.frameRate = FrameRate.getDefault();
@@ -80,6 +92,26 @@ public class Project {
 
     public void setClips(List<Clip> clips) {
         this.clips = clips;
+    }
+
+    public List<Track> getTracks() {
+        return tracks;
+    }
+
+    public void setTracks(List<Track> tracks) {
+        this.tracks = tracks;
+    }
+
+    private void initializeDefaultTracks() {
+        tracks.add(new Track(0, "Video Track 1", MediaType.VIDEO));
+        tracks.add(new Track(1, "Audio Track 1", MediaType.AUDIO));
+    }
+
+    public void ensureTracks() {
+        if (tracks == null || tracks.isEmpty()) {
+            tracks = new ArrayList<>();
+            initializeDefaultTracks();
+        }
     }
 
     public long getDuration() {

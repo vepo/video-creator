@@ -5,19 +5,28 @@ import java.util.Objects;
 
 import org.bson.types.ObjectId;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 import dev.vepo.youtube.creator.infra.MongoSerializers;
+import jakarta.json.bind.annotation.JsonbTypeAdapter;
+import jakarta.json.bind.annotation.JsonbTypeDeserializer;
+import jakarta.json.bind.annotation.JsonbTypeSerializer;
 
 public class Media {
+    @JsonbTypeAdapter(MongoSerializers.ObjectIdJsonbAdapter.class)
     @JsonSerialize(using = MongoSerializers.ObjectIdJacksonSerializer.class)
+    @JsonDeserialize(using = MongoSerializers.ObjectIdJacksonDeserializer.class)
     private ObjectId mediaId;
     private String name;
     private String hash;
     private String mimeType;
     private MediaType type;
     private long duration;
+    @JsonbTypeSerializer(MongoSerializers.InstantJsonbSerializer.class)
+    @JsonbTypeDeserializer(MongoSerializers.InstantJsonbDeserializer.class)
     @JsonSerialize(using = MongoSerializers.InstantJacksonSerializer.class)
+    @JsonDeserialize(using = MongoSerializers.InstantJacksonDeserializer.class)
     private Instant uploadedAt;
 
     public Media() {

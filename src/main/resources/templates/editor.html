@@ -23,16 +23,20 @@
                 <span>Video Creator</span>
             </a>
             <nav class="menu-bar" aria-label="Main menu">
-                <div class="menu-item">File</div>
-                <div class="menu-item">Edit</div>
-                <div class="menu-item">View</div>
-                <div class="menu-item">Help</div>
+                <div class="menu-item menu-item--disabled" title="Coming soon" aria-disabled="true">File</div>
+                <div class="menu-item menu-item--disabled" title="Coming soon" aria-disabled="true">Edit</div>
+                <div class="menu-item menu-item--disabled" title="Coming soon" aria-disabled="true">View</div>
+                <div class="menu-item menu-item--disabled" title="Coming soon" aria-disabled="true">Help</div>
             </nav>
         </div>
         <div class="header-right">
-            <button class="btn btn-secondary" id="playBtn" type="button" aria-label="Play">
+            <button class="btn btn-secondary" id="saveBtn" type="button" title="Save project">
+                <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#export"/></svg>
+                Save
+            </button>
+            <button class="btn btn-secondary" id="playBtn" type="button" title="Generate timeline preview">
                 <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#play"/></svg>
-                Play
+                Preview
             </button>
             <button class="btn btn-secondary" id="stopBtn" type="button" aria-label="Stop">
                 <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#stop"/></svg>
@@ -44,6 +48,8 @@
             </button>
         </div>
     </header>
+
+    <div id="editorStatus" class="editor-status visually-hidden" role="status" aria-live="polite"></div>
 
     <div class="editor-layout">
         <aside class="project-panel">
@@ -70,38 +76,46 @@
 
         <main class="center-panel">
             <div class="preview-container">
-                <div class="preview-placeholder">
+                <video id="previewVideo" class="preview-video visually-hidden" controls playsinline></video>
+                <div class="preview-placeholder" id="previewPlaceholder">
                     <svg class="icon preview-placeholder-icon" aria-hidden="true"><use href="/icons/icons.svg#video"/></svg>
                     <div>Video Preview</div>
-                    <div class="preview-placeholder-hint">Drag clips to the timeline to start editing</div>
+                    <div class="preview-placeholder-hint">Add clips to the timeline, then click Preview in the header or below</div>
                 </div>
-                <div class="preview-controls">
-                    <button class="btn btn-secondary" type="button" aria-label="Previous frame">|&lt;</button>
-                    <button class="btn btn-secondary" type="button" aria-label="Rewind">&lt;&lt;</button>
-                    <button class="btn btn-primary" type="button" aria-label="Play preview">
+                <div id="previewStatus" class="preview-status visually-hidden" aria-live="polite"></div>
+                <div class="preview-controls" id="previewControls">
+                    <button class="btn btn-secondary" id="previewPrevFrameBtn" type="button" aria-label="Previous frame">|&lt;</button>
+                    <button class="btn btn-secondary" id="previewRewindBtn" type="button" aria-label="Rewind">&lt;&lt;</button>
+                    <button class="btn btn-primary" id="previewPlayBtn" type="button" aria-label="Play preview">
                         <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#play"/></svg>
                     </button>
-                    <button class="btn btn-secondary" type="button" aria-label="Forward">&gt;&gt;</button>
-                    <button class="btn btn-secondary" type="button" aria-label="Next frame">&gt;|</button>
+                    <button class="btn btn-secondary" id="previewForwardBtn" type="button" aria-label="Forward">&gt;&gt;</button>
+                    <button class="btn btn-secondary" id="previewNextFrameBtn" type="button" aria-label="Next frame">&gt;|</button>
                 </div>
             </div>
 
             <div class="timeline-container">
                 <div class="timeline-header">
                     <h3>Timeline</h3>
+                    <div class="timeline-toolbar">
+                        <button class="btn btn-secondary btn-sm" id="addVideoTrackBtn" type="button">+ Video Track</button>
+                        <button class="btn btn-secondary btn-sm" id="addAudioTrackBtn" type="button">+ Audio Track</button>
+                        <button class="btn btn-secondary btn-sm" id="cutClipBtn" type="button" title="Split selected clip at playhead" disabled>Cut</button>
+                        <button class="btn btn-secondary btn-sm" id="deleteClipBtn" type="button" title="Delete selected clip" disabled>Delete</button>
+                    </div>
                     <div class="timeline-controls">
-                        <button class="btn btn-secondary btn-icon" type="button" aria-label="Zoom in">
+                        <button class="btn btn-secondary btn-icon" id="timelineZoomInBtn" type="button" aria-label="Zoom in" title="Zoom in">
                             <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#zoom-in"/></svg>
                         </button>
-                        <button class="btn btn-secondary btn-icon" type="button" aria-label="Zoom out">
+                        <button class="btn btn-secondary btn-icon" id="timelineZoomOutBtn" type="button" aria-label="Zoom out" title="Zoom out">
                             <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#zoom-out"/></svg>
                         </button>
-                        <button class="btn btn-secondary btn-icon" type="button" aria-label="Fit timeline">
+                        <button class="btn btn-secondary btn-icon" id="timelineFitBtn" type="button" aria-label="Fit timeline" title="Fit timeline to clips">
                             <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#fit"/></svg>
                         </button>
                     </div>
                     <div class="timeline-zoom-level">
-                        <span>Zoom: 100%</span>
+                        <span id="zoomLevelLabel">Zoom: 100%</span>
                     </div>
                 </div>
                 <div class="timeline-scroll">
@@ -111,49 +125,9 @@
                     <div class="ruler-marks" id="rulerMarks"></div>
                 </div>
 
-                <div class="tracks-container">
-                    <div class="track-row">
-                        <div class="track-header">
-                            <div class="track-info">
-                                <svg class="icon track-icon" aria-hidden="true"><use href="/icons/icons.svg#video"/></svg>
-                                <span class="track-name">Video Track 1</span>
-                            </div>
-                            <div class="track-controls">
-                                <button class="track-btn mute-btn" type="button" aria-label="Mute track">
-                                    <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#mute"/></svg>
-                                </button>
-                                <button class="track-btn lock-btn" type="button" aria-label="Lock track">
-                                    <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#lock"/></svg>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="track-area" id="video-track">
-                            <div class="track-line"></div>
-                        </div>
-                    </div>
+                <div class="tracks-container" id="tracks-container"></div>
 
-                    <div class="track-row">
-                        <div class="track-header">
-                            <div class="track-info">
-                                <svg class="icon track-icon" aria-hidden="true"><use href="/icons/icons.svg#audio"/></svg>
-                                <span class="track-name">Audio Track 1</span>
-                            </div>
-                            <div class="track-controls">
-                                <button class="track-btn mute-btn" type="button" aria-label="Mute track">
-                                    <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#mute"/></svg>
-                                </button>
-                                <button class="track-btn lock-btn" type="button" aria-label="Lock track">
-                                    <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#lock"/></svg>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="track-area" id="audio-track">
-                            <div class="track-line"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="playhead" id="playhead">
+                <div class="playhead" id="playhead" role="slider" aria-label="Playhead" aria-valuemin="0" tabindex="0">
                     <div class="playhead-line"></div>
                     <div class="playhead-handle"></div>
                 </div>
@@ -167,6 +141,7 @@
                 <div class="tab" role="tab">Effects</div>
             </div>
             <div class="tab-content">
+                <div id="tabComingSoon" class="tab-coming-soon visually-hidden" role="status"></div>
                 <div id="item-properties-empty">
                     <p class="placeholder-text">Select an item to edit properties</p>
                 </div>
@@ -261,19 +236,18 @@
             </div>
             <div class="modal-body">
                 <div class="property-group">
-                    <label>Export Format</label>
-                    <select>
-                        <option>MP4 (H.264)</option>
-                        <option>WebM (VP9)</option>
-                        <option>MOV (ProRes)</option>
+                    <label for="exportFormat">Export Format</label>
+                    <select id="exportFormat">
+                        <option value="mp4">MP4 (H.264)</option>
+                        <option value="webm">WebM (VP9)</option>
                     </select>
                 </div>
                 <div class="property-group">
-                    <label>Quality</label>
-                    <select>
-                        <option>High (1080p)</option>
-                        <option>Medium (720p)</option>
-                        <option>Low (480p)</option>
+                    <label for="exportQuality">Quality</label>
+                    <select id="exportQuality">
+                        <option value="high">High (1080p)</option>
+                        <option value="medium">Medium (720p)</option>
+                        <option value="low">Low (480p)</option>
                     </select>
                 </div>
                 <div class="progress-container">
@@ -282,10 +256,13 @@
                     </div>
                     <p id="progressText">Ready to export</p>
                 </div>
+                <div id="exportDownload" class="export-download visually-hidden">
+                    <a id="exportDownloadLink" class="btn btn-primary" href="#" download>Download video</a>
+                </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" type="button">Cancel</button>
-                <button class="btn btn-primary" type="button">Export</button>
+                <button class="btn btn-secondary close-export" type="button">Cancel</button>
+                <button class="btn btn-primary" id="startExportBtn" type="button">Export</button>
             </div>
         </div>
     </div>

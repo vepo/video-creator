@@ -43,7 +43,7 @@ src/main/java/dev/vepo/youtube/creator/
 └── AppConfig.java                # Typed configuration (@ConfigMapping)
 ```
 
-Frontend: `src/main/resources/templates/` (Qute HTML) and `META-INF/resources/` (CSS/JS).
+Frontend: `src/main/resources/templates/` (Qute HTML) and `META-INF/resources/` (CSS/JS). UI inventory: [`docs/UI_ELEMENTS.md`](docs/UI_ELEMENTS.md).
 
 ## Visual Identity
 
@@ -101,6 +101,8 @@ Project rules live in `.cursor/rules/`:
 | `java-quality.mdc` | Java style and quality |
 | `javascript-standards.mdc` | Browser editor JS (vanilla, namespaces) |
 | `html-standards.mdc` | Qute templates and page markup |
+| `nielsen-heuristics.mdc` | Nielsen usability heuristics for UI |
+| `ui-elements-catalog.mdc` | UI inventory — read/update `docs/UI_ELEMENTS.md` |
 | `tdd-development.mdc` | Test-first workflow |
 | `ddd-domain-language.mdc` | Domain-driven naming and boundaries |
 | `architecture-correctness.mdc` | Layering and dependency rules |

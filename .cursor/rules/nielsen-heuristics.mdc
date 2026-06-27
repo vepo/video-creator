@@ -1,0 +1,51 @@
+---
+description: Nielsen usability heuristics for UI components and interactions
+globs: "**/*.{html,css,js}"
+alwaysApply: false
+---
+
+# Nielsen Heuristics (UI)
+
+Apply Jakob Nielsen's 10 usability heuristics to every UI change. Complements `visual-identity.mdc`, `html-standards.mdc`, `javascript-standards.mdc`, and `ui-elements-catalog.mdc`.
+
+## Checklist (all 10)
+
+| # | Heuristic | In this project |
+|---|-----------|-----------------|
+| 1 | **Visibility of system status** | Show loading, saving, upload, and render progress. Update status panel values. Disable buttons while async work runs; restore on completion or error. |
+| 2 | **Match system and real world** | Use domain terms: Project, Media, Clip, Timeline, Render, Preview. Prefer NLE-familiar layout (library left, timeline bottom, properties right). |
+| 3 | **User control and freedom** | Provide cancel/close for dialogs and long operations. Support deselect (click empty area). Never block navigation without an exit. |
+| 4 | **Consistency and standards** | Reuse `btn`, `panel`, theme tokens, and icon sprite patterns. Same control behavior on main window and editor. |
+| 5 | **Error prevention** | Confirm destructive actions (delete project, remove clip). Disable invalid actions instead of failing silently. Validate inputs before API calls. |
+| 6 | **Recognition rather than recall** | Label buttons and panel headers. Show filenames, durations, and clip names on screen — do not rely on memory. Use `title` on truncated text. |
+| 7 | **Flexibility and efficiency** | Support drag-and-drop where natural (media → timeline). Prefer keyboard-friendly focus order; add shortcuts only when they match common NLE habits. |
+| 8 | **Aesthetic and minimalist design** | One primary action per panel header. Hide advanced fields until needed. No decorative chrome — every element earns its space. |
+| 9 | **Help users recover from errors** | Surface errors in the UI (status text, inline message) — not `alert()`. State what failed and a next step (retry, check connection). |
+| 10 | **Help and documentation** | Empty states explain what to do next ("Drop files here", "No projects yet"). Use `title`/`aria-label` on icon-only controls. |
+
+## Examples
+
+```html
+<!-- ❌ BAD — no status, icon-only with no label -->
+<button id="exportBtn"><svg class="icon">…</svg></button>
+
+<!-- ✅ GOOD — labeled, disabled while busy -->
+<button id="exportBtn" class="btn btn-primary" disabled aria-busy="true">Exporting…</button>
+```
+
+```javascript
+// ❌ BAD — silent failure, no feedback
+catch (e) {}
+
+// ✅ GOOD — visible error, actionable message
+catch (e) {
+    console.error('Export failed', e);
+    UI.setStatus('Export failed — check MLT status and try again.');
+}
+```
+
+## Review before finishing UI work
+
+- Can the user tell what the app is doing right now?
+- Can they undo, cancel, or leave without losing unrelated work?
+- Are labels, icons, and errors understandable without prior context?
