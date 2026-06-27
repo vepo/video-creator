@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 40" fill="none">
+  <rect x="2" y="8" width="24" height="24" rx="4" stroke="#3daee9" stroke-width="2"/>
+  <path d="M11 16l7 4-7 4v-8z" fill="#3daee9"/>
+  <text x="36" y="27" font-family="Noto Sans, system-ui, sans-serif" font-size="18" font-weight="600" fill="#eff0f1">Video Creator</text>
+</svg>

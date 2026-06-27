@@ -2,38 +2,30 @@
 
 Prototype status of the web UI (`index.html`, `editor.html`, `index.js`, `editor.js`). A feature is **implemented** when the interface exposes working behavior (not merely static markup or placeholder controls).
 
-**Summary:** 28 implemented · 41 not implemented · 3 partial
+**Summary:** 32 implemented · 35 not implemented · 3 partial
 
 ---
 
-## Home Page (`/`)
+## Main Window (`/`)
+
+Three functional zones: header, projects panel, system status panel. Kdenlive-inspired dark theme. See [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md).
 
 | Status | Feature |
 |--------|---------|
-| - [x] | Application header and branding |
-| - [x] | MLT availability status (success / error banner) |
-| - [x] | List projects loaded from the database |
-| - [x] | Open an existing project (navigate to editor) |
-| - [x] | Create a new project (`/editor/new` redirect) |
-| - [x] | Show project name on each project card |
-| - [x] | Show project description on each project card |
-| - [x] | Show project creation date (formatted from epoch via `index.js`) |
+| - [x] | Application header with Video Creator branding and logo |
+| - [x] | Projects panel with table list (name, created, media count) |
+| - [x] | New Project primary action (always visible in panel header) |
+| - [x] | Open existing project from table row or Open button |
+| - [x] | Empty state when no projects exist |
+| - [x] | Show project creation date (formatted via `index.js`) |
+| - [x] | System status panel — MLT (melt) |
+| - [x] | System status panel — video engine |
+| - [x] | System status panel — database connection |
+| - [x] | Health API refresh for MLT status (`index.js`) |
+| - [x] | Application version in status panel |
 | - [ ] | Delete a project |
-| - [ ] | Edit project metadata from the home page |
+| - [ ] | Edit project metadata from the main window |
 | - [ ] | Search or filter projects |
-
-### Advertised on home page (marketing cards only)
-
-These appear under **Features** on the home page but have no working UI behind them yet:
-
-| Status | Feature |
-|--------|---------|
-| - [ ] | Multi-track timeline editor (beyond the basic editor prototype) |
-| - [ ] | Trim and cut videos with drag-and-drop precision |
-| - [ ] | Audio mixing across multiple tracks |
-| - [ ] | Live preview before rendering |
-| - [ ] | Multiple export formats and codecs (user-facing) |
-| - [ ] | Fast MLT-powered processing (user-facing workflow) |
 
 ---
 
@@ -42,12 +34,12 @@ These appear under **Features** on the home page but have no working UI behind t
 | Status | Feature |
 |--------|---------|
 | - [x] | Load editor with embedded project JSON (`currentProject`) |
-| - [x] | Editor header with logo and title |
+| - [x] | Editor header with Video Creator logo and title |
+| - [x] | Navigate back to the main window (logo links to `/`) |
 | - [ ] | File menu actions |
 | - [ ] | Edit menu actions |
 | - [ ] | View menu actions |
 | - [ ] | Help menu actions |
-| - [ ] | Navigate back to the home page |
 
 ---
 
@@ -63,7 +55,7 @@ These appear under **Features** on the home page but have no working UI behind t
 | - [x] | Media type icons (video / audio / image / unknown) |
 | - [x] | Select a media item to show properties (read-only) |
 | - [x] | Drag media from the library onto the timeline |
-| - [ ] | Upload button (`+`) opens a file picker |
+| - [x] | Upload button opens file picker and uploads media |
 | - [ ] | Remove media from the project |
 | - [ ] | Rename media |
 
@@ -171,30 +163,32 @@ These appear under **Features** on the home page but have no working UI behind t
 | - [ ] | `POST /api/timeline/preview` | Not called from `editor.js` |
 | - [ ] | `POST /api/timeline/render` | Not called from `editor.js` |
 | - [ ] | `GET /download/{filename}` | No download link in the UI |
-| - [ ] | `GET /api/video/health` | Not called from the UI (status shown via server render on home) |
+| - [x] | `GET /api/video/health` | Polled from main window (`index.js`) |
 
 ---
 
 ## Quick checklist (all interface features)
 
-### Home
-- [x] Application header and branding
-- [x] MLT availability status
-- [x] List projects from database
+### Main window
+- [x] Video Creator header and logo
+- [x] Projects table list
+- [x] New Project button (always visible)
 - [x] Open existing project
-- [x] Create new project
-- [x] Project card name
-- [x] Project card description
-- [x] Project card creation date formatting
+- [x] Empty state for no projects
+- [x] Creation date formatting
+- [x] System status — MLT
+- [x] System status — video engine
+- [x] System status — database
+- [x] Health API refresh
 - [ ] Delete project
-- [ ] Edit project from home
+- [ ] Edit project from main window
 - [ ] Search / filter projects
 
-### Editor — navigation & shell
+### Editor — navigation and shell
 - [x] Load project into editor
-- [x] Editor header / logo
+- [x] Video Creator header / logo
+- [x] Back to main window (logo link)
 - [ ] File / Edit / View / Help menus
-- [ ] Back to home navigation
 
 ### Editor — media library
 - [x] Project files panel
@@ -204,7 +198,7 @@ These appear under **Features** on the home page but have no working UI behind t
 - [x] Media icons and duration
 - [x] Select media properties
 - [x] Drag media to timeline
-- [ ] Upload button file picker
+- [x] Upload button file picker
 - [ ] Remove media
 - [ ] Rename media
 
@@ -261,11 +255,3 @@ These appear under **Features** on the home page but have no working UI behind t
 - [ ] Export progress
 - [ ] Start render
 - [ ] Download result
-
-### Advertised (home marketing only)
-- [ ] Multi-track timeline (full)
-- [ ] Trim and cut
-- [ ] Audio mixing
-- [ ] Live preview
-- [ ] Multiple formats
-- [ ] Fast processing workflow

@@ -3,94 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Editor</title>
+    <title>Video Creator — Editor</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/theme.css">
     <link rel="stylesheet" href="/css/editor.css">
     <script>
         let currentProject = {project.asJson.raw ?: '{}'};
-        console.log(currentProject);
     </script>
     <script src="/javascript/editor.js"></script>
 </head>
 <body>
-    <!-- Header -->
     <header class="editor-header">
         <div class="header-left">
-            <div class="logo">
-                <span class="logo-icon">🎬</span>
-                <span>Editor</span>
-            </div>
-            <div class="menu-bar">
+            <a href="/" class="logo" title="Back to projects">
+                <img src="/brand/logo-icon.svg" alt="" class="logo-icon" width="24" height="24">
+                <span>Video Creator</span>
+            </a>
+            <nav class="menu-bar" aria-label="Main menu">
                 <div class="menu-item">File</div>
                 <div class="menu-item">Edit</div>
                 <div class="menu-item">View</div>
                 <div class="menu-item">Help</div>
-            </div>
+            </nav>
         </div>
         <div class="header-right">
-            <button class="btn btn-secondary" id="playBtn">▶ Play</button>
-            <button class="btn btn-secondary" id="stopBtn">⏹ Stop</button>
-            <button class="btn btn-primary" id="exportBtn">Export Video</button>
+            <button class="btn btn-secondary" id="playBtn" type="button" aria-label="Play">
+                <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#play"/></svg>
+                Play
+            </button>
+            <button class="btn btn-secondary" id="stopBtn" type="button" aria-label="Stop">
+                <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#stop"/></svg>
+                Stop
+            </button>
+            <button class="btn btn-primary" id="exportBtn" type="button">
+                <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#export"/></svg>
+                Export Video
+            </button>
         </div>
     </header>
 
-    <!-- Main Editor Layout -->
     <div class="editor-layout">
-        <!-- Left Panel - Project Files -->
-        <div class="project-panel">
+        <aside class="project-panel">
             <div class="panel-header">
-                <span>📁</span>
+                <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#folder"/></svg>
                 <span>Project Files</span>
-                <button class="btn btn-secondary btn-right" id="uploadBtn">+</button>
+                <button class="btn btn-secondary btn-right" id="uploadBtn" type="button"
+                        title="Upload media" aria-label="Upload media">
+                    <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#upload"/></svg>
+                </button>
+                <input type="file" id="mediaFileInput" class="visually-hidden" multiple
+                       accept="video/*,audio/*,image/*" tabindex="-1" aria-hidden="true">
             </div>
             <div id="project-files-container" class="panel-content">
                 <div class="drop-zone">
                     <div class="drop-zone-content">
-                        <div class="drop-zone-icon">📁</div>
-                        <div class="drop-zone-text">Drop to add...</div>
+                        <svg class="icon icon-xl drop-zone-icon" aria-hidden="true"><use href="/icons/icons.svg#upload"/></svg>
+                        <div class="drop-zone-text">Drop files to add media</div>
                     </div>
                 </div>
-                <div class="file-list" id="media-list">
-                {!
-                    <!-- Files will be populated here -->
-                    <div class="file-item">
-                        <div class="file-icon">🎥</div>
-                        <div class="file-info">
-                            <div class="file-name" title="Sample Video 1.mp4">Sample Video 1.mp4</span>
-                            </div>
-                            <div class="file-duration">00:30</div>
-                        </div>
-                    </div>
-                !}
-                </div>
+                <div class="file-list" id="media-list"></div>
             </div>
-        </div>
+        </aside>
 
-        <!-- Center Panel - Preview and Timeline -->
-        <div class="center-panel">
-            <!-- Preview Area -->
+        <main class="center-panel">
             <div class="preview-container">
                 <div class="preview-placeholder">
-                    <div style="font-size: 48px; margin-bottom: 10px;">🎬</div>
+                    <svg class="icon preview-placeholder-icon" aria-hidden="true"><use href="/icons/icons.svg#video"/></svg>
                     <div>Video Preview</div>
-                    <div style="font-size: 12px; margin-top: 5px;">Drag clips to the timeline to start editing</div>
+                    <div class="preview-placeholder-hint">Drag clips to the timeline to start editing</div>
                 </div>
                 <div class="preview-controls">
-                    <button class="btn btn-secondary">⏮</button>
-                    <button class="btn btn-secondary">⏪</button>
-                    <button class="btn btn-primary">▶</button>
-                    <button class="btn btn-secondary">⏩</button>
-                    <button class="btn btn-secondary">⏭</button>
+                    <button class="btn btn-secondary" type="button" aria-label="Previous frame">|&lt;</button>
+                    <button class="btn btn-secondary" type="button" aria-label="Rewind">&lt;&lt;</button>
+                    <button class="btn btn-primary" type="button" aria-label="Play preview">
+                        <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#play"/></svg>
+                    </button>
+                    <button class="btn btn-secondary" type="button" aria-label="Forward">&gt;&gt;</button>
+                    <button class="btn btn-secondary" type="button" aria-label="Next frame">&gt;|</button>
                 </div>
             </div>
 
-            <!-- Timeline Area -->
             <div class="timeline-container">
                 <div class="timeline-header">
                     <h3>Timeline</h3>
                     <div class="timeline-controls">
-                        <button class="btn btn-secondary">🔍+</button>
-                        <button class="btn btn-secondary">🔍-</button>
-                        <button class="btn btn-secondary">📐 Fit</button>
+                        <button class="btn btn-secondary btn-icon" type="button" aria-label="Zoom in">
+                            <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#zoom-in"/></svg>
+                        </button>
+                        <button class="btn btn-secondary btn-icon" type="button" aria-label="Zoom out">
+                            <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#zoom-out"/></svg>
+                        </button>
+                        <button class="btn btn-secondary btn-icon" type="button" aria-label="Fit timeline">
+                            <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#fit"/></svg>
+                        </button>
                     </div>
                     <div class="timeline-zoom-level">
                         <span>Zoom: 100%</span>
@@ -100,211 +108,156 @@
                     <div class="scroll-handle"></div>
                 </div>
                 <div class="timeline-ruler">
-                    <div class="ruler-marks" id="rulerMarks">
-                        <!-- Time marks will be generated here -->
-                    </div>
+                    <div class="ruler-marks" id="rulerMarks"></div>
                 </div>
 
                 <div class="tracks-container">
-                    <!-- Video Track -->
                     <div class="track-row">
                         <div class="track-header">
                             <div class="track-info">
-                                <span class="track-icon">🎥</span>
+                                <svg class="icon track-icon" aria-hidden="true"><use href="/icons/icons.svg#video"/></svg>
                                 <span class="track-name">Video Track 1</span>
                             </div>
                             <div class="track-controls">
-                                <button class="track-btn mute-btn">🔇</button>
-                                <button class="track-btn lock-btn">🔒</button>
+                                <button class="track-btn mute-btn" type="button" aria-label="Mute track">
+                                    <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#mute"/></svg>
+                                </button>
+                                <button class="track-btn lock-btn" type="button" aria-label="Lock track">
+                                    <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#lock"/></svg>
+                                </button>
                             </div>
                         </div>
                         <div class="track-area" id="video-track">
-                            <div class="track-line">
-                            {!
-                                <!-- Video clips will be placed here -->
-                                <div class="clip" style="left: 5%; width: 15%;">
-                                    <div class="clip-content">
-                                        <span class="clip-name">Intro</span>
-                                        <div class="clip-controls">
-                                            <button class="clip-btn">✏️</button>
-                                            <button class="clip-btn">🗑️</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="clip" style="left: 25%; width: 20%;">
-                                    <div class="clip-content">
-                                        <span class="clip-name">Scene 1</span>
-                                        <div class="clip-controls">
-                                            <button class="clip-btn">✏️</button>
-                                            <button class="clip-btn">🗑️</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            !}
-                            </div>
+                            <div class="track-line"></div>
                         </div>
                     </div>
 
-                    <!-- Audio Track -->
                     <div class="track-row">
                         <div class="track-header">
                             <div class="track-info">
-                                <span class="track-icon">🎵</span>
+                                <svg class="icon track-icon" aria-hidden="true"><use href="/icons/icons.svg#audio"/></svg>
                                 <span class="track-name">Audio Track 1</span>
                             </div>
                             <div class="track-controls">
-                                <button class="track-btn mute-btn">🔇</button>
-                                <button class="track-btn lock-btn">🔒</button>
+                                <button class="track-btn mute-btn" type="button" aria-label="Mute track">
+                                    <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#mute"/></svg>
+                                </button>
+                                <button class="track-btn lock-btn" type="button" aria-label="Lock track">
+                                    <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#lock"/></svg>
+                                </button>
                             </div>
                         </div>
                         <div class="track-area" id="audio-track">
-                            <div class="track-line">
-                            {!
-                                <!-- Audio clips will be placed here -->
-                                <div class="clip" style="left: 10%; width: 40%; background: linear-gradient(to bottom, #e74c3c, #c0392b); border-color: #c0392b;">
-                                    <div class="clip-content">
-                                        <span class="clip-name">Background Music</span>
-                                        <div class="clip-controls">
-                                            <button class="clip-btn">✏️</button>
-                                            <button class="clip-btn">🗑️</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            !}
-                            </div>
+                            <div class="track-line"></div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Playhead -->
-                <div class="playhead" id="playhead" style="left: 15%;">
+                <div class="playhead" id="playhead">
                     <div class="playhead-line"></div>
                     <div class="playhead-handle"></div>
                 </div>
             </div>
-        </div>
+        </main>
 
-        <!-- Right Panel - Properties -->
-        <div class="properties-panel">
-            <div class="properties-tabs">
-                <div class="tab active">Properties</div>
-                <div class="tab">Transitions</div>
-                <div class="tab">Effects</div>
+        <aside class="properties-panel">
+            <div class="properties-tabs" role="tablist">
+                <div class="tab active" role="tab">Properties</div>
+                <div class="tab" role="tab">Transitions</div>
+                <div class="tab" role="tab">Effects</div>
             </div>
             <div class="tab-content">
                 <div id="item-properties-empty">
                     <p class="placeholder-text">Select an item to edit properties</p>
                 </div>
-                <div id="item-properties">
-                </div>
-                <h3>Project</h3>
+                <div id="item-properties"></div>
+                <h3 class="section-heading">Project</h3>
                 <div class="property-group">
-                    <label>Name</label>
+                    <label for="txt-project-name">Name</label>
                     <input id="txt-project-name" type="text" />
                 </div>
                 <div class="property-group">
-                    <label>Project Settings</label>
+                    <label for="cmb-screen-size">Project Settings</label>
                     <select id="cmb-screen-size">
-                        <!-- Standard Definition (SD) -->
                         <optgroup label="Standard Definition (SD)">
                             <option value="SD_360p">360p (640x360) - 16:9</option>
                             <option value="SD_480p">480p (854x480) - 16:9</option>
                             <option value="YT_RECOMMENDED_SD">Recommended SD (640x480) - 4:3</option>
                         </optgroup>
-                        
-                        <!-- High Definition (HD) -->
                         <optgroup label="High Definition (HD)">
                             <option value="HD_720p" selected>720p HD (1280x720) - 16:9</option>
                             <option value="HD_1080p">1080p Full HD (1920x1080) - 16:9</option>
                             <option value="YT_RECOMMENDED_HD">Recommended HD (1280x720) - 16:9</option>
                             <option value="YT_RECOMMENDED_FULL_HD">Recommended Full HD (1920x1080) - 16:9</option>
                         </optgroup>
-                        
-                        <!-- Ultra HD (4K/8K) -->
                         <optgroup label="Ultra High Definition (4K/8K)">
                             <option value="UHD_1440p">1440p 2K (2560x1440) - 16:9</option>
                             <option value="UHD_2160p">2160p 4K (3840x2160) - 16:9</option>
                             <option value="UHD_4320p">4320p 8K (7680x4320) - 16:9</option>
                             <option value="YT_RECOMMENDED_4K">Recommended 4K (3840x2160) - 16:9</option>
                         </optgroup>
-                        
-                        <!-- Vertical Video -->
                         <optgroup label="Vertical Video">
                             <option value="VERTICAL_360p">360p Vertical (360x640) - 9:16</option>
                             <option value="VERTICAL_720p">720p Vertical (720x1280) - 9:16</option>
                             <option value="VERTICAL_1080p">1080p Vertical (1080x1920) - 9:16</option>
                         </optgroup>
-                        
-                        <!-- Square Video -->
                         <optgroup label="Square Video">
                             <option value="SQUARE_480p">480p Square (480x480) - 1:1</option>
                             <option value="SQUARE_720p">720p Square (720x720) - 1:1</option>
                             <option value="SQUARE_1080p">1080p Square (1080x1080) - 1:1</option>
                         </optgroup>
-                        
-                        <!-- YouTube Shorts -->
                         <optgroup label="YouTube Shorts">
                             <option value="SHORTS_1080x1920">YouTube Shorts (1080x1920) - 9:16</option>
                         </optgroup>
                     </select>
                 </div>
                 <div class="property-group">
-                    <label>Frame Rate</label>
+                    <label for="cmb-frame-rate">Frame Rate</label>
                     <select id="cmb-frame-rate">
-                        <!-- Film & Cinema -->
-                        <optgroup label="🎞️ Film & Cinema">
+                        <optgroup label="Film and Cinema">
                             <option value="FPS_24">24 FPS - Traditional Film Standard</option>
                             <option value="FPS_23_976">23.976 FPS - Film (NTSC)</option>
                         </optgroup>
-                        
-                        <!-- Broadcast Standards -->
-                        <optgroup label="📺 Broadcast Standards">
+                        <optgroup label="Broadcast Standards">
                             <option value="FPS_25">25 FPS - PAL (Europe, Asia, Australia)</option>
                             <option value="FPS_30">30 FPS - NTSC (North America, Japan)</option>
                             <option value="FPS_29_97">29.97 FPS - NTSC Broadcast</option>
                         </optgroup>
-                        
-                        <!-- High Frame Rate -->
-                        <optgroup label="⚡ High Frame Rate">
+                        <optgroup label="High Frame Rate">
                             <option value="FPS_50">50 FPS - PAL High</option>
                             <option value="FPS_59_94">59.94 FPS - NTSC High</option>
                             <option value="FPS_60">60 FPS - Smooth Action</option>
                         </optgroup>
-                        
-                        <!-- Ultra High Frame Rate -->
-                        <optgroup label="🚀 Ultra High Frame Rate">
+                        <optgroup label="Ultra High Frame Rate">
                             <option value="FPS_120">120 FPS - Slow Motion</option>
                             <option value="FPS_240">240 FPS - Super Slow Motion</option>
                             <option value="FPS_480">480 FPS - Extreme Slow Motion</option>
                         </optgroup>
-                        
-                        <!-- Web & Streaming -->
-                        <optgroup label="🌐 Web & Streaming">
+                        <optgroup label="Web and Streaming">
                             <option value="FPS_24_WEB">24 FPS - Film Style</option>
                             <option value="FPS_30_WEB" selected>30 FPS - Standard Streaming</option>
-                            <option value="FPS_60_WEB">60 FPS - Gaming & Sports</option>
+                            <option value="FPS_60_WEB">60 FPS - Gaming and Sports</option>
                         </optgroup>
                     </select>
                 </div>
                 <div class="property-group">
                     <label>Duration</label>
                     <div id="dur-project" class="duration-controller">
-                        <input class="hours"   type="number" step="1" min="1" max="5" />
-                        <input class="minutes" type="number" step="1" min="1" max="59" />
-                        <input class="seconds" type="number" step="1" min="1" max="59" />
-                        <input class="millis"  type="number" step="1" min="1" max="999" />
+                        <input class="hours" type="number" step="1" min="1" max="5" aria-label="Hours" />
+                        <input class="minutes" type="number" step="1" min="1" max="59" aria-label="Minutes" />
+                        <input class="seconds" type="number" step="1" min="1" max="59" aria-label="Seconds" />
+                        <input class="millis" type="number" step="1" min="1" max="999" aria-label="Milliseconds" />
                     </div>
                 </div>
             </div>
-        </div>
+        </aside>
     </div>
 
-    <!-- Export Modal -->
-    <div id="exportModal" class="modal">
+    <div id="exportModal" class="modal" role="dialog" aria-labelledby="export-modal-title" aria-modal="true">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Export Video</h3>
-                <span class="close">&times;</span>
+                <h3 id="export-modal-title">Export Video</h3>
+                <button class="close" type="button" aria-label="Close">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="property-group">
@@ -331,8 +284,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary">Cancel</button>
-                <button class="btn btn-primary">Export</button>
+                <button class="btn btn-secondary" type="button">Cancel</button>
+                <button class="btn btn-primary" type="button">Export</button>
             </div>
         </div>
     </div>

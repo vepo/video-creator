@@ -212,15 +212,15 @@ const UI = {
         UI.setupItemProperties(type, hash);
     },
     mediaIcon: function(media) {
+        var iconId = 'unknown';
         if (media.type == 'VIDEO') {
-            return '🎥';
-        } else if(media.type == 'AUDIO') {
-            return '🎵';
-        } else if(media.type == 'IMAGE') {
-            return '🖼️'
-        } else {
-            return '❔';
+            iconId = 'video';
+        } else if (media.type == 'AUDIO') {
+            iconId = 'audio';
+        } else if (media.type == 'IMAGE') {
+            iconId = 'image';
         }
+        return '<svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#' + iconId + '"/></svg>';
     },
     mediaDuration: function(duration) {
         // Handle invalid inputs
@@ -349,7 +349,7 @@ const UI = {
             if (!clipElm) {
                 switch(clip.type) {
                     case 'AUDIO':
-                        audioTrack.insertAdjacentHTML('beforeend', `<div draggable="true" class="clip" item-hash="${clip.hash}" style="left: ${ (clip.start * 100) / currentProject.duration }%; width: ${(clip.duration * 100) / currentProject.duration}%;">
+                        audioTrack.insertAdjacentHTML('beforeend', `<div draggable="true" class="clip clip--audio" item-hash="${clip.hash}" style="left: ${ (clip.start * 100) / currentProject.duration }%; width: ${(clip.duration * 100) / currentProject.duration}%;">
                                                                     <div class="clip-content">
                                                                         <span class="clip-name">${media.name}</span>
                                                                     </div>
@@ -789,32 +789,51 @@ const TimelineZoom = {
 };
 
 const MediaLibrary = {
-    add: (file) => {
-        // Upload file to server
-        const formData = new FormData();
+    addFiles: function(fileList) {
+        Array.from(fileList).forEach(function(file) {
+            if (file) {
+                MediaLibrary.add(file);
+            }
+        });
+    },
+    add: function(file) {
+        if (!file) {
+            console.error('No file provided for upload');
+            return;
+        }
+        var projectId = currentProject.id;
+        if (!projectId) {
+            console.error('Project id not available');
+            alert('Cannot upload: project not loaded.');
+            return;
+        }
+        var formData = new FormData();
         formData.append('name', file.name);
         formData.append('lastModified', file.lastModified);
         formData.append('file', file);
-        
-        fetch(`/api/editor/${currentProject.id}/media`, {
+
+        fetch('/api/editor/' + projectId + '/media', {
             method: 'POST',
             body: formData
         })
-        .then(response => response.json())
-        .then(data => {
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
             if (data.error) {
                 alert('Error uploading file: ' + data.error);
                 return;
             }
-            currentProject.medias.push(data)
+            if (!currentProject.medias) {
+                currentProject.medias = [];
+            }
+            currentProject.medias.push(data);
             UI.reconciliateMedias();
         })
-        .catch(error => {
+        .catch(function(error) {
             console.error('Error:', error);
             alert('Error uploading file: ' + error.message);
         });
     }
-}
+};
 
 const dynamicElementsEvents = {
     'MEDIA': {
@@ -882,7 +901,9 @@ const staticElementsEvents = {
 
                 e.preventDefault();
                 e.stopPropagation();
-                [...e.dataTransfer.items].forEach((file) => MediaLibrary.add(file.getAsFile()));
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    MediaLibrary.addFiles(e.dataTransfer.files);
+                }
             }
         }
     }, 
@@ -1008,13 +1029,26 @@ document.addEventListener('DOMContentLoaded', function() {
     UI.bindProjectProperties();
     TimelineZoom.updateRulerMarks();
 
+    var uploadBtn = document.getElementById('uploadBtn');
+    var mediaFileInput = document.getElementById('mediaFileInput');
+    if (uploadBtn && mediaFileInput) {
+        uploadBtn.addEventListener('click', function() {
+            mediaFileInput.click();
+        });
+        mediaFileInput.addEventListener('change', function() {
+            if (mediaFileInput.files && mediaFileInput.files.length > 0) {
+                MediaLibrary.addFiles(mediaFileInput.files);
+                mediaFileInput.value = '';
+            }
+        });
+    }
+
     // Tab switching
     const tabs = document.querySelectorAll('.tab');
-    tabs.forEach(tab => {
+    tabs.forEach(function(tab) {
         tab.addEventListener('click', function() {
-            tabs.forEach(t => t.classList.remove('active'));
-            let evntElement = e.realTarget || e.target;
-            evntElement.classList.add('active');
+            tabs.forEach(function(t) { t.classList.remove('active'); });
+            tab.classList.add('active');
         });
     });
 

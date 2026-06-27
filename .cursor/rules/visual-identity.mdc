@@ -1,0 +1,31 @@
+---
+description: Visual identity — Video Creator design system and Kdenlive-inspired UI
+globs: "**/*.{css,html,js}"
+alwaysApply: false
+---
+
+# Visual Identity
+
+Reference [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) for full guidelines.
+
+## Rules
+
+1. **Use theme tokens** — colors, spacing, and typography via `var(--vc-*)` from `theme.css`. No ad-hoc hex in page stylesheets.
+2. **No emoji in UI chrome** — use SVG icons from `/icons/icons.svg`.
+3. **Dark theme everywhere** — home and editor share the same Breeze Dark palette.
+4. **Stylesheet order** — load `theme.css` before `style.css` or `editor.css`.
+5. **Main window** — projects list, New Project action, system status only. No marketing feature cards.
+
+## Icons
+
+```html
+<svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#video"/></svg>
+```
+
+In JavaScript, use `UI.mediaIcon()` pattern — return SVG markup, not emoji.
+
+## Brand
+
+- Product name: **Video Creator**
+- Logo: `/brand/logo-icon.svg` (header), `/brand/logo.svg` (full)
+- Favicon: `/favicon.svg`

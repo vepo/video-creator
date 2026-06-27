@@ -1,0 +1,243 @@
+:root {
+    /* Backgrounds — KDE Breeze Dark */
+    --vc-color-bg-app: #232629;
+    --vc-color-bg-panel: #2a2e32;
+    --vc-color-bg-panel-alt: #31363b;
+    --vc-color-bg-input: #31363b;
+    --vc-color-bg-hover: rgba(255, 255, 255, 0.06);
+
+    /* Borders */
+    --vc-color-border: #3d4348;
+    --vc-color-border-focus: #3daee9;
+
+    /* Text */
+    --vc-color-text: #eff0f1;
+    --vc-color-text-muted: #bdc3c7;
+    --vc-color-text-dim: #7f8c8d;
+
+    /* Accent — KDE highlight blue */
+    --vc-color-accent: #3daee9;
+    --vc-color-accent-hover: #2d9cdb;
+    --vc-color-accent-active: #21618c;
+
+    /* Semantic */
+    --vc-color-selection: #f39c12;
+    --vc-color-playhead: #e74c3c;
+    --vc-color-success: #27ae60;
+    --vc-color-error: #e74c3c;
+    --vc-color-warning: #f39c12;
+
+    /* Timeline clips */
+    --vc-color-clip-video: #2980b9;
+    --vc-color-clip-video-end: #1f6aa5;
+    --vc-color-clip-audio: #c0392b;
+    --vc-color-clip-audio-end: #962d22;
+
+    /* Typography */
+    --vc-font-family: 'Noto Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --vc-font-size-xs: 11px;
+    --vc-font-size-sm: 12px;
+    --vc-font-size-base: 13px;
+    --vc-font-size-md: 14px;
+    --vc-font-size-lg: 18px;
+    --vc-font-size-xl: 24px;
+
+    /* Spacing */
+    --vc-space-xs: 4px;
+    --vc-space-sm: 8px;
+    --vc-space-md: 12px;
+    --vc-space-lg: 16px;
+    --vc-space-xl: 24px;
+
+    /* Radius */
+    --vc-radius-sm: 3px;
+    --vc-radius-md: 4px;
+    --vc-radius-lg: 8px;
+
+    /* Layout */
+    --vc-header-height: 40px;
+    --vc-toolbar-btn-height: 32px;
+}
+
+/* Base reset shared by all pages */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--vc-font-family);
+    font-size: var(--vc-font-size-md);
+    color: var(--vc-color-text);
+    background-color: var(--vc-color-bg-app);
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--vc-space-sm);
+    padding: 6px 12px;
+    min-height: var(--vc-toolbar-btn-height);
+    border: 1px solid transparent;
+    border-radius: var(--vc-radius-md);
+    font-family: var(--vc-font-family);
+    font-size: var(--vc-font-size-md);
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+}
+
+.btn-primary {
+    background: var(--vc-color-accent);
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: var(--vc-color-accent-hover);
+}
+
+.btn-secondary {
+    background: var(--vc-color-bg-panel-alt);
+    color: var(--vc-color-text);
+    border-color: var(--vc-color-border);
+}
+
+.btn-secondary:hover {
+    background: var(--vc-color-bg-hover);
+    border-color: var(--vc-color-text-muted);
+}
+
+.btn-sm {
+    padding: 4px 10px;
+    min-height: 28px;
+    font-size: var(--vc-font-size-base);
+}
+
+/* Icons */
+.icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    fill: currentColor;
+}
+
+.icon-lg {
+    width: 20px;
+    height: 20px;
+}
+
+.icon-xl {
+    width: 24px;
+    height: 24px;
+}
+
+/* Panel chrome */
+.panel {
+    background: var(--vc-color-bg-panel);
+    border: 1px solid var(--vc-color-border);
+    border-radius: var(--vc-radius-md);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    gap: var(--vc-space-sm);
+    padding: var(--vc-space-md) var(--vc-space-lg);
+    background: var(--vc-color-bg-panel-alt);
+    border-bottom: 1px solid var(--vc-color-border);
+    font-weight: 600;
+    font-size: var(--vc-font-size-md);
+}
+
+.panel-header-actions {
+    margin-left: auto;
+    display: flex;
+    gap: var(--vc-space-sm);
+}
+
+.panel-body {
+    flex: 1;
+    padding: var(--vc-space-lg);
+    overflow: auto;
+}
+
+/* Status rows */
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: var(--vc-space-md);
+    padding: var(--vc-space-md);
+    border-bottom: 1px solid var(--vc-color-border);
+}
+
+.status-row:last-child {
+    border-bottom: none;
+}
+
+.status-row-label {
+    flex: 1;
+    font-size: var(--vc-font-size-md);
+}
+
+.status-row-value {
+    font-size: var(--vc-font-size-base);
+    font-weight: 600;
+}
+
+.status-row--ok .status-row-value {
+    color: var(--vc-color-success);
+}
+
+.status-row--error .status-row-value {
+    color: var(--vc-color-error);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.status-row--ok .status-dot {
+    background: var(--vc-color-success);
+}
+
+.status-row--error .status-dot {
+    background: var(--vc-color-error);
+}
+
+/* Form controls */
+input[type="text"],
+input[type="number"],
+select {
+    width: 100%;
+    padding: var(--vc-space-sm) var(--vc-space-md);
+    background: var(--vc-color-bg-input);
+    color: var(--vc-color-text);
+    border: 1px solid var(--vc-color-border);
+    border-radius: var(--vc-radius-md);
+    font-family: var(--vc-font-family);
+    font-size: var(--vc-font-size-base);
+}
+
+input:focus,
+select:focus {
+    outline: none;
+    border-color: var(--vc-color-border-focus);
+}
+
+label {
+    display: block;
+    margin-bottom: var(--vc-space-xs);
+    font-size: var(--vc-font-size-base);
+    color: var(--vc-color-text-muted);
+}

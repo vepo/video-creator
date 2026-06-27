@@ -45,6 +45,15 @@ src/main/java/dev/vepo/youtube/creator/
 
 Frontend: `src/main/resources/templates/` (Qute HTML) and `META-INF/resources/` (CSS/JS).
 
+## Visual Identity
+
+Kdenlive-inspired dark theme (KDE Breeze Dark). See [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md).
+
+- Shared tokens: `META-INF/resources/css/theme.css`
+- Main window: projects list, New Project, system status
+- Editor: three-column NLE layout
+- Icons: SVG sprite at `/icons/icons.svg` — no emoji in UI chrome
+
 ## Architecture
 
 Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before structural changes.

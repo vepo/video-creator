@@ -54,8 +54,19 @@ public class VideoEditorController {
     @GET
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance home() {
-        return index.data("meltAvailable", videoProcessingService.isMeltAvailable(), 
-                     "projects", projects.loadAll());
+        boolean dbAvailable = true;
+        java.util.List<dev.vepo.youtube.creator.project.Project> projectList;
+        try {
+            projectList = projects.loadAll();
+        } catch (Exception e) {
+            logger.error("Failed to connect to database", e);
+            dbAvailable = false;
+            projectList = java.util.Collections.emptyList();
+        }
+        return index.data("meltAvailable", videoProcessingService.isMeltAvailable(),
+                         "dbAvailable", dbAvailable,
+                         "appVersion", "1.0.0",
+                         "projects", projectList);
     }
 
 

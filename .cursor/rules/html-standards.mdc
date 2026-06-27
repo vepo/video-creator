@@ -40,21 +40,34 @@ Every page must include:
 - Add `title` on truncated text (e.g. long filenames).
 - Prefer `class` for styling; reserve `id` for unique hooks and ARIA when needed.
 
-## CSS Classes
+## CSS & Visual Identity
 
-Follow existing BEM-like naming in templates:
+Load stylesheets in order:
+
+```html
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/css/style.css">   <!-- main window -->
+<link rel="stylesheet" href="/css/editor.css">  <!-- editor -->
+```
+
+See [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) and `.cursor/rules/visual-identity.mdc`.
 
 | Pattern | Use |
 |---------|-----|
 | `btn`, `btn-primary`, `btn-secondary` | Buttons |
-| `panel-header`, `panel-content` | Editor panels |
+| `panel`, `panel-header`, `panel-body` | Main window and editor panels |
 | `file-item`, `file-name`, `file-duration` | Media list rows |
-| `feature-card`, `feature-grid` | Home page cards |
+| `project-table`, `status-row` | Main window projects and status |
+
+Icons: `<svg class="icon"><use href="/icons/icons.svg#name"/></svg>` — no emoji in UI chrome.
 
 - Do not use inline `style=""` for layout — add or extend rules in `/css/`.
 - Section comments (`<!-- Header -->`) are welcome for large templates.
 
 ## Assets
 
-- Stylesheets: `/css/style.css` (home), `/css/editor.css` (editor).
+- Theme: `/css/theme.css` (shared tokens and base components)
+- Page styles: `/css/style.css` (main window), `/css/editor.css` (editor)
+- Brand: `/brand/logo.svg`, `/brand/logo-icon.svg`, `/favicon.svg`
+- Icons: `/icons/icons.svg` (SVG sprite)
 - Scripts: `/javascript/index.js`, `/javascript/editor.js` — one entry script per page.
