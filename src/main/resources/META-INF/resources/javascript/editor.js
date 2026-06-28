@@ -332,7 +332,7 @@ const Project = {
             currentProject.clips = [];
         }
 
-        var startMs = TimelineSnap.snapMs(Math.round(currentProject.duration * positionPercent / 100));
+        var startMs = TimelineSnap.snapMs(Math.round(Project.timelineDurationMs() * positionPercent / 100));
         var duration = Project.clipDuration(media);
         var baseIndex = currentProject.clips.length;
         var tracks = Project.resolveAvTracksForDrop(targetTrackIndex);
@@ -373,8 +373,7 @@ const Project = {
         }
     },
     clampClipStart: function(startMs, duration) {
-        var maxStart = Math.max(0, currentProject.duration - duration);
-        return Math.max(0, Math.min(maxStart, Math.round(startMs)));
+        return Math.max(0, Math.round(startMs));
     },
     acceptsClipOnTrack: function(clipHash, trackIndex) {
         var clip = Project.findClip(clipHash);
@@ -797,17 +796,15 @@ const DragNDrop = {
         e.dataTransfer.setData('video-editor/clip-type', clip.type);
         e.dataTransfer.setData('video-editor/drag-type', 'CLIP');
         var clipElm = UI.getElementByHash(hash);
+        var media = Project.findMedia(clip.mediaHash);
+        var duration = clip.duration > 0 ? clip.duration : Project.clipDuration(media);
         var grabOffsetMs = 0;
         if (clipElm && typeof e.clientX === 'number') {
             var clipRect = clipElm.getBoundingClientRect();
-            var trackLine = clipElm.closest('.track-line');
-            var totalWidth = trackLine ? trackLine.offsetWidth : clipRect.width;
-            if (totalWidth > 0) {
-                grabOffsetMs = Math.round(((e.clientX - clipRect.left) / totalWidth) * currentProject.duration);
+            if (clipRect.width > 0 && duration > 0) {
+                grabOffsetMs = Math.round(((e.clientX - clipRect.left) / clipRect.width) * duration);
             }
         }
-        var media = Project.findMedia(clip.mediaHash);
-        var duration = clip.duration > 0 ? clip.duration : Project.clipDuration(media);
         this.activeDrag = {
             kind: 'CLIP',
             hash: hash,
@@ -865,7 +862,7 @@ const DragNDrop = {
         return Math.max(0, Math.min(100, (clientX / metrics.totalWidth) * 100));
     },
     clipStartFromPosition: function(positionPercent) {
-        var startMs = Math.round(currentProject.duration * positionPercent / 100);
+        var startMs = Math.round(Project.timelineDurationMs() * positionPercent / 100);
         if (this.activeDrag && this.activeDrag.kind === 'CLIP') {
             startMs -= this.activeDrag.grabOffsetMs || 0;
             startMs = Project.clampClipStart(TimelineSnap.snapMs(startMs), this.activeDrag.duration);
@@ -1220,15 +1217,29 @@ const UI = {
     },
     clipLayoutPercent: function(clip, media) {
         var duration = clip.duration > 0 ? clip.duration : Project.clipDuration(media);
+        var timelineDuration = Project.timelineDurationMs();
         return {
-            left: (clip.start * 100) / currentProject.duration,
-            width: (duration * 100) / currentProject.duration
+            left: timelineDuration > 0 ? (clip.start * 100) / timelineDuration : 0,
+            width: timelineDuration > 0 ? (duration * 100) / timelineDuration : 0
         };
     },
-    applyClipLayout: function(clipElm, clip, media) {
-        var layout = UI.clipLayoutPercent(clip, media);
-        clipElm.style.left = layout.left + '%';
-        clipElm.style.width = layout.width + '%';
+    clipPixelLayout: function(startMs, durationMs) {
+        var metrics = TimelineZoom.getMetrics();
+        var timelineDuration = Project.timelineDurationMs();
+        if (!timelineDuration) {
+            return { left: '0px', width: '0px' };
+        }
+        var startPixels = (startMs / timelineDuration) * metrics.totalWidth;
+        var durationPixels = (durationMs / timelineDuration) * metrics.totalWidth;
+        return {
+            left: (startPixels - metrics.scrollOffset) + 'px',
+            width: durationPixels + 'px'
+        };
+    },
+    applyClipPixelLayout: function(clipElm, startMs, durationMs) {
+        var layout = UI.clipPixelLayout(startMs, durationMs);
+        clipElm.style.left = layout.left;
+        clipElm.style.width = layout.width;
     },
     getTrackLine: function(trackIndex) {
         var trackArea = document.querySelector('.track-area[data-track-index="' + trackIndex + '"]');
@@ -1302,7 +1313,9 @@ const UI = {
                 Project.removeTrack(parseInt(btn.getAttribute('data-track-index'), 10));
             });
         });
+        Playhead.ensureElement(container);
         TimelineZoom.updateTrackLines();
+        Playhead.updateLayout();
     },
     reconciliateClips: function() {
         document.querySelectorAll('.clip[item-hash]').forEach(function(elm) {
@@ -1396,33 +1409,47 @@ const UI = {
         if (!media) {
             return;
         }
-        var layout = UI.clipLayoutPercent({ start: startMs, duration: clip.duration }, media);
+        var duration = clip.duration > 0 ? clip.duration : Project.clipDuration(media);
         var trackLine = UI.getTrackLine(clip.trackIndex);
         if (!trackLine) {
             return;
         }
+        var layout = UI.clipPixelLayout(startMs, duration);
         var tempId = 'move-' + clip.hash;
         var clipClass = 'clip' + (extraClass ? ' ' + extraClass : '');
         var previousElm = UI.findShadowElement(tempId);
+        if (previousElm && previousElm.parentElement !== trackLine) {
+            previousElm.parentElement.removeChild(previousElm);
+            previousElm = null;
+        }
         if (!previousElm) {
             trackLine.insertAdjacentHTML('beforeend',
                 '<div class="' + clipClass + '" item-temp-hash="' + tempId + '" style="left: ' + layout.left +
-                '%; width: ' + layout.width + '%; opacity: 0.6;">' +
+                '; width: ' + layout.width + '; opacity: 0.6;">' +
                 '<div class="clip-content"><span class="clip-name" title="' + media.name + '">' + media.name + '</span></div></div>');
         } else {
-            previousElm.style.left = layout.left + '%';
-            previousElm.style.width = layout.width + '%';
+            previousElm.style.left = layout.left;
+            previousElm.style.width = layout.width;
         }
     },
-    updateShadowElementsForClipMove: function(startMs, clipHash) {
+    updateShadowElementsForClipMove: function(startMs, clipHash, targetTrackIndex) {
         UI.removeShadowComponent();
         var clip = Project.findClip(clipHash);
         if (!clip) {
             return;
         }
         var clips = Project.findAvPartners(clip);
+        var avTracks = typeof targetTrackIndex === 'number'
+            ? Project.resolveAvTracksForDrop(targetTrackIndex)
+            : null;
         clips.forEach(function(c) {
-            UI.updateShadowElementForClip(startMs, c, c.type === 'AUDIO' ? 'clip--audio' : '');
+            var shadowClip = c;
+            if (avTracks) {
+                shadowClip = Object.assign({}, c, {
+                    trackIndex: c.type === 'AUDIO' ? avTracks.audio : avTracks.video
+                });
+            }
+            UI.updateShadowElementForClip(startMs, shadowClip, c.type === 'AUDIO' ? 'clip--audio' : '');
         });
     },
     highlightTrack: function(e, active) {
@@ -1446,7 +1473,7 @@ const UI = {
             return false;
         }
         var startMs = DragNDrop.clipStartFromPosition(DragNDrop.calculateDropPosition(e));
-        UI.updateShadowElementsForClipMove(startMs, clipHash);
+        UI.updateShadowElementsForClipMove(startMs, clipHash, trackIndex);
         UI.highlightTrack(e, true);
         e.preventDefault();
         e.stopPropagation();
@@ -1477,7 +1504,7 @@ const UI = {
             shadow.parentElement.removeChild(shadow);
         });
     },
-    updateShadowElementOnTrack: function(position, tempId, trackIndex, widthPercent, extraClass) {
+    updateShadowElementOnTrack: function(positionPercent, tempId, trackIndex, durationMs, extraClass) {
         var trackLine = UI.getTrackLine(trackIndex);
         if (!trackLine) {
             return;
@@ -1488,17 +1515,24 @@ const UI = {
         if (!media) {
             return;
         }
+        var clipDuration = durationMs > 0 ? durationMs : Project.clipDuration(media);
+        var startMs = Math.round(Project.timelineDurationMs() * positionPercent / 100);
+        var layout = UI.clipPixelLayout(startMs, clipDuration);
 
         var clipClass = 'clip' + (extraClass ? ' ' + extraClass : '');
         var previousElm = UI.findShadowElement(tempId);
+        if (previousElm && previousElm.parentElement !== trackLine) {
+            previousElm.parentElement.removeChild(previousElm);
+            previousElm = null;
+        }
         if (!previousElm) {
             trackLine.insertAdjacentHTML('beforeend',
-                '<div class="' + clipClass + '" item-temp-hash="' + tempId + '" style="left: ' + position +
-                '%; width: ' + widthPercent + '%; opacity: 0.6;">' +
+                '<div class="' + clipClass + '" item-temp-hash="' + tempId + '" style="left: ' + layout.left +
+                '; width: ' + layout.width + '; opacity: 0.6;">' +
                 '<div class="clip-content"><span class="clip-name" title="' + media.name + '">' + media.name + '</span></div></div>');
         } else {
-            previousElm.style.left = position + '%';
-            previousElm.style.width = widthPercent + '%';
+            previousElm.style.left = layout.left;
+            previousElm.style.width = layout.width;
         }
     },
     updateShadowElementsForMedia: function(position, mediaHash, targetTrackIndex) {
@@ -1506,17 +1540,17 @@ const UI = {
         if (!media) {
             return;
         }
-        var widthPercent = (Project.clipDuration(media) * 100) / currentProject.duration;
+        var clipDuration = Project.clipDuration(media);
         var tracks = Project.resolveAvTracksForDrop(targetTrackIndex);
         var mediaType = Project.resolveMediaType(media);
 
         if (mediaType === 'VIDEO') {
-            UI.updateShadowElementOnTrack(position, mediaHash + '-video', tracks.video, widthPercent, '');
-            UI.updateShadowElementOnTrack(position, mediaHash + '-audio', tracks.audio, widthPercent, 'clip--audio');
+            UI.updateShadowElementOnTrack(position, mediaHash + '-video', tracks.video, clipDuration, '');
+            UI.updateShadowElementOnTrack(position, mediaHash + '-audio', tracks.audio, clipDuration, 'clip--audio');
         } else if (mediaType === 'IMAGE') {
-            UI.updateShadowElementOnTrack(position, mediaHash + '-video', tracks.video, widthPercent, '');
+            UI.updateShadowElementOnTrack(position, mediaHash + '-video', tracks.video, clipDuration, '');
         } else if (mediaType === 'AUDIO') {
-            UI.updateShadowElementOnTrack(position, mediaHash + '-audio', tracks.audio, widthPercent, 'clip--audio');
+            UI.updateShadowElementOnTrack(position, mediaHash + '-audio', tracks.audio, clipDuration, 'clip--audio');
         }
     },
     bindProjectProperties: function() {
@@ -1769,11 +1803,13 @@ const TimelineZoom = {
     },
     
     fitToTimeline: function() {
-        // Calculate zoom level to fit entire project duration in view
-        const timelineWidth = document.querySelector('.timeline-ruler').clientWidth;
-        const totalSeconds = currentProject.duration / 1000;
-        const requiredPixelsPerSecond = timelineWidth / totalSeconds;
-        
+        var timelineWidth = document.querySelector('.timeline-ruler').clientWidth;
+        var totalSeconds = Project.timelineDurationMs() / 1000;
+        if (totalSeconds <= 0) {
+            return;
+        }
+        var requiredPixelsPerSecond = timelineWidth / totalSeconds;
+
         this.zoomLevel = Math.max(this.minZoom, Math.min(this.maxZoom, requiredPixelsPerSecond / this.pixelsPerSecond));
         this.scrollPosition = 0;
         this.updateTimelineDisplay();
@@ -1791,6 +1827,41 @@ const TimelineZoom = {
             maxScroll: maxScroll,
             scrollOffset: scrollOffset
         };
+    },
+
+    timeReference: function() {
+        return document.querySelector('.track-line') || document.querySelector('.timeline-ruler');
+    },
+
+    clientXToAbsoluteX: function(clientX) {
+        var metrics = this.getMetrics();
+        var ref = this.timeReference();
+        if (!ref) {
+            return 0;
+        }
+        var rect = ref.getBoundingClientRect();
+        return metrics.scrollOffset + (clientX - rect.left);
+    },
+
+    clientXToTimeMs: function(clientX) {
+        var duration = Project.timelineDurationMs();
+        var metrics = this.getMetrics();
+        if (!duration || metrics.totalWidth <= 0) {
+            return 0;
+        }
+        var absoluteX = this.clientXToAbsoluteX(clientX);
+        var percent = absoluteX / metrics.totalWidth;
+        return Math.round(Math.max(0, Math.min(duration, duration * percent)));
+    },
+
+    timeMsToVisibleX: function(timeMs) {
+        var duration = Project.timelineDurationMs();
+        var metrics = this.getMetrics();
+        if (!duration || metrics.totalWidth <= 0) {
+            return 0;
+        }
+        var absoluteX = (timeMs / duration) * metrics.totalWidth;
+        return absoluteX - metrics.scrollOffset;
     },
 
     setScrollPosition: function(ratio) {
@@ -1842,7 +1913,8 @@ const TimelineZoom = {
 
     updateRulerMarks: function() {
         const rulerMarks = document.getElementById('rulerMarks');
-        if (!rulerMarks || !currentProject.duration) {
+        var timelineDuration = Project.timelineDurationMs();
+        if (!rulerMarks || !timelineDuration) {
             return;
         }
 
@@ -1853,11 +1925,11 @@ const TimelineZoom = {
         const metrics = this.getMetrics();
         rulerMarks.style.transform = `translateX(-${metrics.scrollOffset}px)`;
         const totalMarks = Math.max(1, Math.floor(totalWidth / markWidthPx));
-        const timeIntervalMs = currentProject.duration / totalMarks;
+        const timeIntervalMs = timelineDuration / totalMarks;
 
         for (let i = 0; i <= totalMarks; i++) {
-            const timeMs = Math.min(currentProject.duration, Math.round(i * timeIntervalMs));
-            const position = (timeMs * 100) / currentProject.duration;
+            const timeMs = Math.min(timelineDuration, Math.round(i * timeIntervalMs));
+            const position = (timeMs * 100) / timelineDuration;
             const label = TimelineZoom.formatRulerTime(timeMs);
             rulerMarks.insertAdjacentHTML('beforeend',
                 '<div class="time-mark" style="left: ' + position + '%">' + label + '</div>');
@@ -1908,19 +1980,18 @@ const TimelineZoom = {
     updateClipPositions: function() {
         const clips = document.querySelectorAll('.clip');
         const metrics = this.getMetrics();
+        var timelineDuration = Project.timelineDurationMs();
 
         clips.forEach(clip => {
             const clipHash = clip.getAttribute('item-hash');
             const clipData = Project.findClip(clipHash);
 
-            if (clipData) {
+            if (clipData && timelineDuration > 0) {
                 const media = Project.findMedia(clipData.mediaHash);
                 const duration = clipData.duration > 0 ? clipData.duration : Project.clipDuration(media);
-                const startPercent = (clipData.start * 100) / currentProject.duration;
-                const durationPercent = (duration * 100) / currentProject.duration;
 
-                const startPixels = (startPercent / 100) * metrics.totalWidth;
-                const durationPixels = (durationPercent / 100) * metrics.totalWidth;
+                const startPixels = (clipData.start / timelineDuration) * metrics.totalWidth;
+                const durationPixels = (duration / timelineDuration) * metrics.totalWidth;
 
                 clip.style.left = `${startPixels - metrics.scrollOffset}px`;
                 clip.style.width = `${durationPixels}px`;
@@ -1936,20 +2007,24 @@ const TimelineZoom = {
         return 10;                             // Very small grid at very high zoom
     },
     
-    // Helper method to convert time to pixels
     timeToPixels: function(timeInMillis) {
-        const totalSeconds = currentProject.duration / 1000;
-        const visibleWidth = document.querySelector('.timeline-ruler').clientWidth;
-        const totalWidth = visibleWidth * this.zoomLevel;
-        return (timeInMillis / currentProject.duration) * totalWidth;
+        var timelineDuration = Project.timelineDurationMs();
+        var visibleWidth = document.querySelector('.timeline-ruler').clientWidth;
+        var totalWidth = visibleWidth * this.zoomLevel;
+        if (!timelineDuration) {
+            return 0;
+        }
+        return (timeInMillis / timelineDuration) * totalWidth;
     },
-    
-    // Helper method to convert pixels to time
+
     pixelsToTime: function(pixels) {
-        const totalSeconds = currentProject.duration / 1000;
-        const visibleWidth = document.querySelector('.timeline-ruler').clientWidth;
-        const totalWidth = visibleWidth * this.zoomLevel;
-        return (pixels / totalWidth) * currentProject.duration;
+        var timelineDuration = Project.timelineDurationMs();
+        var visibleWidth = document.querySelector('.timeline-ruler').clientWidth;
+        var totalWidth = visibleWidth * this.zoomLevel;
+        if (!totalWidth) {
+            return 0;
+        }
+        return (pixels / totalWidth) * timelineDuration;
     }
 };
 
@@ -2020,26 +2095,15 @@ const Playhead = {
         return this.positionMs_;
     },
     init: function() {
+        Playhead.ensureElement(document.getElementById('tracks-container'));
         var ruler = document.querySelector('.timeline-ruler');
         if (ruler) {
-            ruler.addEventListener('click', function(e) {
-                Playhead.setPositionFromClientX(e.clientX);
-            });
-        }
-
-        var playhead = document.getElementById('playhead');
-        if (playhead) {
-            var handle = playhead.querySelector('.playhead-handle');
-            var startDrag = function(e) {
+            ruler.addEventListener('mousedown', function(e) {
                 Playhead.dragging = true;
                 Playhead.setFollowingPlayback(false);
                 Playhead.setPositionFromClientX(e.clientX);
                 e.preventDefault();
-            };
-            if (handle) {
-                handle.addEventListener('mousedown', startDrag);
-            }
-            playhead.addEventListener('mousedown', startDrag);
+            });
         }
 
         document.addEventListener('mousemove', function(e) {
@@ -2055,30 +2119,48 @@ const Playhead = {
 
         var tracksContainer = document.getElementById('tracks-container');
         if (tracksContainer) {
-            tracksContainer.addEventListener('click', function(e) {
+            tracksContainer.addEventListener('mousedown', function(e) {
                 if (e.target.closest('.clip') || e.target.closest('.track-btn') ||
-                    e.target.closest('.track-header')) {
+                    e.target.closest('.track-header') || ClipMove.isActive()) {
                     return;
                 }
                 if (e.target.closest('.track-line') || e.target.closest('.track-area')) {
+                    Playhead.dragging = true;
+                    Playhead.setFollowingPlayback(false);
                     Playhead.setPositionFromClientX(e.clientX);
+                    e.preventDefault();
                 }
+            });
+            tracksContainer.addEventListener('scroll', function() {
+                Playhead.updateLayout();
             });
         }
 
         this.updateVisual();
     },
-    setPositionFromClientX: function(clientX) {
-        var metrics = TimelineZoom.getMetrics();
-        var ruler = document.querySelector('.timeline-ruler');
-        if (!ruler || metrics.visibleWidth <= 0 || metrics.totalWidth <= 0) {
+    ensureElement: function(container) {
+        if (!container) {
             return;
         }
-        var rect = ruler.getBoundingClientRect();
-        var clickX = clientX - rect.left;
-        var absoluteX = metrics.scrollOffset + clickX;
-        var percent = absoluteX / metrics.totalWidth;
-        this.setPositionPercent(Math.max(0, Math.min(1, percent)));
+        var playhead = document.getElementById('playhead');
+        if (!playhead) {
+            container.insertAdjacentHTML('afterbegin',
+                '<div class="playhead" id="playhead" role="slider" aria-label="Playhead" aria-valuemin="0" tabindex="0">' +
+                '<div class="playhead-line"></div></div>');
+            return;
+        }
+        if (playhead.parentElement !== container) {
+            container.insertBefore(playhead, container.firstChild);
+        } else if (container.firstChild !== playhead) {
+            container.insertBefore(playhead, container.firstChild);
+        }
+    },
+    setPositionFromClientX: function(clientX) {
+        var metrics = TimelineZoom.getMetrics();
+        if (metrics.visibleWidth <= 0 || metrics.totalWidth <= 0) {
+            return;
+        }
+        this.setPositionMs(TimelineZoom.clientXToTimeMs(clientX), { follow: true });
     },
     setPositionPercent: function(percent) {
         this.setPositionMs(Math.round(Project.timelineDurationMs() * percent), { follow: true });
@@ -2102,34 +2184,52 @@ const Playhead = {
             playhead.classList.toggle('playhead--following', this.followingPlayback);
         }
     },
+    updateLayout: function() {
+        var playhead = document.getElementById('playhead');
+        var container = document.getElementById('tracks-container');
+        if (!playhead || !container) {
+            return;
+        }
+        var areas = container.querySelectorAll('.track-area');
+        if (!areas.length) {
+            playhead.style.visibility = 'hidden';
+            return;
+        }
+        var containerRect = container.getBoundingClientRect();
+        var firstRect = areas[0].getBoundingClientRect();
+        var lastRect = areas[areas.length - 1].getBoundingClientRect();
+        playhead.style.top = (firstRect.top - containerRect.top + container.scrollTop) + 'px';
+        playhead.style.height = (lastRect.bottom - firstRect.top) + 'px';
+    },
     updateVisual: function(options) {
         options = options || {};
         var playhead = document.getElementById('playhead');
+        var rulerMarker = document.getElementById('playheadRulerMarker');
         if (!playhead || !Project.timelineDurationMs()) {
             return;
         }
+        this.updateLayout();
         var metrics = TimelineZoom.getMetrics();
-        var duration = Project.timelineDurationMs();
-        var absoluteX = (this.positionMs_ / duration) * metrics.totalWidth;
-        if (metrics.visibleWidth > 0) {
-            var visibleX = absoluteX - metrics.scrollOffset;
-            var leftPercent = (visibleX / metrics.visibleWidth) * 100;
-            if (leftPercent < -1 || leftPercent > 101) {
-                playhead.style.visibility = 'hidden';
-            } else {
-                playhead.style.visibility = 'visible';
-                playhead.style.left = leftPercent + '%';
+        var visibleX = TimelineZoom.timeMsToVisibleX(this.positionMs_);
+        var inView = visibleX >= -1 && visibleX <= metrics.visibleWidth + 1;
+        if (metrics.visibleWidth > 0 && inView) {
+            playhead.style.visibility = 'visible';
+            playhead.style.left = visibleX + 'px';
+            if (rulerMarker) {
+                rulerMarker.style.visibility = 'visible';
+                rulerMarker.style.left = visibleX + 'px';
+            }
+        } else {
+            playhead.style.visibility = 'hidden';
+            if (rulerMarker) {
+                rulerMarker.style.visibility = 'hidden';
             }
         }
         playhead.setAttribute('aria-valuenow', this.positionMs_);
-        playhead.setAttribute('aria-valuemax', duration);
+        playhead.setAttribute('aria-valuemax', Project.timelineDurationMs());
         var formatted = UI.mediaDuration(this.positionMs_);
         playhead.setAttribute('aria-valuetext', formatted);
         playhead.title = formatted;
-        var handle = playhead.querySelector('.playhead-handle');
-        if (handle) {
-            handle.title = formatted;
-        }
         var timeLabel = document.getElementById('playheadTimeLabel');
         if (timeLabel) {
             timeLabel.textContent = formatted;
@@ -2138,6 +2238,147 @@ const Playhead = {
             TimelineZoom.ensureTimeVisible(this.positionMs_);
         }
         UI.updateTimelineActions();
+    }
+};
+
+const ClipMove = {
+    pending: null,
+    active: null,
+    suppressClick: false,
+    dragThreshold: 4,
+    isActive: function() {
+        return !!this.active;
+    },
+    init: function() {
+        var self = this;
+        document.addEventListener('mousedown', function(e) { self.onMouseDown(e); });
+        document.addEventListener('mousemove', function(e) { self.onMouseMove(e); });
+        document.addEventListener('mouseup', function(e) { self.onMouseUp(e); });
+    },
+    onMouseDown: function(e) {
+        if (e.button !== 0) {
+            return;
+        }
+        var clipElm = e.target.closest('.clip[item-hash]');
+        if (!clipElm || e.target.closest('.clip-trim') || e.target.closest('.clip-btn')) {
+            return;
+        }
+        var hash = clipElm.getAttribute('item-hash');
+        var clip = Project.findClip(hash);
+        if (!clip) {
+            return;
+        }
+        var track = Project.findTrack(clip.trackIndex);
+        if (track && track.locked) {
+            return;
+        }
+        this.pending = {
+            hash: hash,
+            startX: e.clientX,
+            startY: e.clientY,
+            clipElm: clipElm
+        };
+    },
+    beginDrag: function(e) {
+        if (!this.pending) {
+            return;
+        }
+        var hash = this.pending.hash;
+        var clip = Project.findClip(hash);
+        if (!clip) {
+            this.pending = null;
+            return;
+        }
+        var media = Project.findMedia(clip.mediaHash);
+        var duration = clip.duration > 0 ? clip.duration : Project.clipDuration(media);
+        var clipRect = this.pending.clipElm.getBoundingClientRect();
+        var grabOffsetMs = 0;
+        if (clipRect.width > 0 && duration > 0) {
+            grabOffsetMs = Math.round(((e.clientX - clipRect.left) / clipRect.width) * duration);
+        }
+        DragNDrop.activeDrag = {
+            kind: 'CLIP',
+            hash: hash,
+            clipType: clip.type,
+            syncGroup: clip.syncGroup || null,
+            grabOffsetMs: grabOffsetMs,
+            duration: duration
+        };
+        UI.selectElement('CLIP', hash);
+        UI.setClipDraggingState(hash, true);
+        this.pending.clipElm.classList.add('clip--moving');
+        this.active = { hash: hash };
+        this.pending = null;
+        document.body.classList.add('clip-drag-active');
+    },
+    trackLineUnderPointer: function(e) {
+        var trackArea = Array.from(document.querySelectorAll('.track-area')).find(function(area) {
+            var rect = area.getBoundingClientRect();
+            return e.clientX >= rect.left && e.clientX <= rect.right &&
+                   e.clientY >= rect.top && e.clientY <= rect.bottom;
+        });
+        return trackArea ? trackArea.querySelector('.track-line') : null;
+    },
+    onMouseMove: function(e) {
+        if (this.pending && !this.active) {
+            var dx = Math.abs(e.clientX - this.pending.startX);
+            var dy = Math.abs(e.clientY - this.pending.startY);
+            if (dx > this.dragThreshold || dy > this.dragThreshold) {
+                this.beginDrag(e);
+            }
+        }
+        if (!this.active) {
+            return;
+        }
+        var trackLine = this.trackLineUnderPointer(e);
+        if (!trackLine) {
+            UI.removeShadowComponent();
+            document.querySelectorAll('.track-area.active, .track-line.active').forEach(function(elm) {
+                elm.classList.remove('active');
+            });
+            return;
+        }
+        var trackArea = trackLine.closest('.track-area');
+        var trackIndex = parseInt(trackArea.getAttribute('data-track-index'), 10);
+        var fakeEvent = { clientX: e.clientX, realTarget: trackLine, target: trackLine };
+        if (!Project.acceptsClipOnTrack(this.active.hash, trackIndex)) {
+            UI.removeShadowComponent();
+            return;
+        }
+        var startMs = DragNDrop.clipStartFromPosition(DragNDrop.calculateDropPosition(fakeEvent));
+        UI.updateShadowElementsForClipMove(startMs, this.active.hash, trackIndex);
+        UI.highlightTrack(fakeEvent, true);
+    },
+    onMouseUp: function(e) {
+        if (this.pending && !this.active) {
+            this.pending = null;
+            return;
+        }
+        if (!this.active) {
+            return;
+        }
+        this.suppressClick = true;
+        var trackLine = this.trackLineUnderPointer(e);
+        if (trackLine) {
+            var trackArea = trackLine.closest('.track-area');
+            var trackIndex = parseInt(trackArea.getAttribute('data-track-index'), 10);
+            var fakeEvent = { clientX: e.clientX, realTarget: trackLine, target: trackLine };
+            if (Project.acceptsClipOnTrack(this.active.hash, trackIndex)) {
+                var startMs = DragNDrop.clipStartFromPosition(DragNDrop.calculateDropPosition(fakeEvent));
+                Project.moveClipToStart(this.active.hash, startMs, trackIndex);
+            }
+        }
+        UI.removeShadowComponent();
+        UI.setClipDraggingState(null, false);
+        document.querySelectorAll('.track-area.active, .track-line.active').forEach(function(elm) {
+            elm.classList.remove('active');
+        });
+        document.querySelectorAll('.clip.clip--moving').forEach(function(elm) {
+            elm.classList.remove('clip--moving');
+        });
+        DragNDrop.clearActiveDrag();
+        this.active = null;
+        document.body.classList.remove('clip-drag-active');
     }
 };
 
@@ -3290,6 +3531,10 @@ const dynamicElementsEvents = {
     },
     'CLIP': {
         click: function() {
+            if (ClipMove.suppressClick) {
+                ClipMove.suppressClick = false;
+                return;
+            }
             let hash = this.getAttribute('item-hash');
             if (!hash) {
                 console.error("Hash not defined!!!", this);
@@ -3430,6 +3675,7 @@ document.addEventListener('DOMContentLoaded', function() {
     UI.bindProjectProperties();
     TimelineZoom.updateRulerMarks();
     Playhead.init();
+    ClipMove.init();
     Preview.init();
     Export.init();
     ProjectSave.init();

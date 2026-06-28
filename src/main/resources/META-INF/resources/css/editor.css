@@ -432,12 +432,18 @@ body {
     gap: 8px;
 }
 
+body.clip-drag-active {
+    user-select: none;
+    cursor: grabbing;
+}
+
 .timeline-ruler {
     height: 30px;
     background: var(--vc-color-bg-panel);
     border-bottom: 1px solid var(--vc-color-border);
     position: relative;
     overflow: hidden;
+    cursor: ew-resize;
 }
 
 .ruler-marks {
@@ -508,6 +514,7 @@ body {
 .tracks-container {
     flex: 1;
     overflow-y: auto;
+    position: relative;
 }
 
 .track-row {
@@ -630,10 +637,14 @@ body {
     background: linear-gradient(to bottom, var(--vc-color-clip-video), var(--vc-color-clip-video-end));
     border-radius: 3px;
     border: 1px solid var(--vc-color-accent-hover);
-    cursor: pointer;
+    cursor: grab;
     transition: all 0.2s;
     overflow: hidden;
     min-width: 40px;
+}
+
+.clip.clip--moving {
+    cursor: grabbing;
 }
 
 .clip:hover {
@@ -768,14 +779,23 @@ body {
 }
 
 /* Playhead */
-.playhead {
+.playhead-ruler-marker {
     position: absolute;
     top: 0;
     bottom: 0;
     width: 2px;
+    background: var(--vc-color-playhead);
+    pointer-events: none;
+    z-index: 5;
+    visibility: hidden;
+}
+
+.playhead {
+    position: absolute;
+    left: 0;
+    width: 2px;
     z-index: 10;
     pointer-events: none;
-    left: 0;
     transition: left 0.1s;
 }
 
@@ -787,20 +807,6 @@ body {
     height: 100%;
     background: var(--vc-color-playhead);
     width: 2px;
-}
-
-.playhead-handle {
-    position: absolute;
-    top: -6px;
-    left: -5px;
-    width: 12px;
-    height: 12px;
-    background: var(--vc-color-playhead);
-    border-radius: 50%;
-    border: 2px solid white;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-    pointer-events: auto;
-    cursor: ew-resize;
 }
 
 /* Right Panel - Properties */
