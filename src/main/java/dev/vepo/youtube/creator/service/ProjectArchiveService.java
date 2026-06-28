@@ -28,9 +28,8 @@ public class ProjectArchiveService {
     public Path createArchive(String projectId) throws IOException {
         Project project = projects.find(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-        Path archiveDir = mediaService.getOutputPath("archives").getParent().resolve("archives");
-        Files.createDirectories(archiveDir);
-        Path archivePath = archiveDir.resolve("project_" + projectId + ".zip");
+        Path archiveDir = mediaService.ensureOutputSubdir("archives");
+        Path archivePath = archiveDir.resolve("project_" + project.getId().toHexString() + ".zip");
         try (OutputStream out = Files.newOutputStream(archivePath);
              ZipOutputStream zip = new ZipOutputStream(out)) {
             zip.putNextEntry(new ZipEntry("project.json"));
@@ -44,7 +43,7 @@ public class ProjectArchiveService {
                         Files.copy(materialized, zip);
                         zip.closeEntry();
                     } catch (IOException e) {
-                        logger.warn("Skipping media {} in archive: {}", media.getHash(), e.getMessage());
+                        logger.warn("Skipping media entry in archive", e);
                     }
                 }
             }

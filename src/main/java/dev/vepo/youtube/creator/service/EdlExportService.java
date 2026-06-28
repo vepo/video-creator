@@ -24,9 +24,8 @@ public class EdlExportService {
     public Path export(String projectId) throws IOException {
         Project project = projects.find(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-        Path exportDir = mediaService.getOutputPath("exports").getParent().resolve("exports");
-        Files.createDirectories(exportDir);
-        Path output = exportDir.resolve("project_" + projectId + ".edl");
+        Path exportDir = mediaService.ensureOutputSubdir("exports");
+        Path output = exportDir.resolve("project_" + project.getId().toHexString() + ".edl");
         StringBuilder edl = new StringBuilder();
         edl.append("TITLE: ").append(project.getName()).append("\n");
         edl.append("FCM: NON-DROP FRAME\n\n");

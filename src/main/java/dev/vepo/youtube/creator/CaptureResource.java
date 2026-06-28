@@ -9,6 +9,7 @@ import org.jboss.resteasy.reactive.multipart.FileUpload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import dev.vepo.youtube.creator.infra.SafePaths;
 import dev.vepo.youtube.creator.project.Projects;
 import dev.vepo.youtube.creator.service.MediaService;
 import jakarta.inject.Inject;
@@ -66,13 +67,13 @@ public class CaptureResource {
                            .build();
         }
         try {
-            var tempDir = Files.createTempDirectory("capture_" + captureType);
-            var tempFile = tempDir.resolve(file.fileName());
+            var tempDir = mediaService.createTempDirectory("capture_" + captureType);
+            var tempFile = tempDir.resolve(SafePaths.safeBasename(file.fileName()));
             Files.copy(file.uploadedFile(), tempFile, StandardCopyOption.REPLACE_EXISTING);
-            var media = mediaService.store(tempFile, captureType + "_" + file.fileName());
+            var media = mediaService.store(tempFile, captureType + "_" + SafePaths.safeBasename(file.fileName()));
             project.getMedias().add(media);
             projects.update(project);
-            logger.info("Stored {} capture for project {}: {}", captureType, projectId, media.getHash());
+            logger.info("Stored {} capture", captureType);
             return Response.ok(new CaptureUploadResponse(media.getHash(),
                     captureType + " capture uploaded successfully")).build();
         } catch (IOException e) {

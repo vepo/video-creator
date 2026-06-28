@@ -11,6 +11,7 @@ import org.jboss.resteasy.reactive.multipart.FileUpload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import dev.vepo.youtube.creator.infra.SafePaths;
 import dev.vepo.youtube.creator.model.VideoSettings;
 import dev.vepo.youtube.creator.project.Project;
 import dev.vepo.youtube.creator.project.Projects;
@@ -132,12 +133,15 @@ public class VideoEditorController {
             if (!Files.exists(filePath)) {
                 return Response.status(Response.Status.NOT_FOUND).build();
             }
-            var disposition = filename.startsWith("preview_")
-                    ? "inline; filename=\"" + filename + "\""
-                    : "attachment; filename=\"" + filename + "\"";
+            var safeFilename = SafePaths.safeBasename(filename);
+            var disposition = safeFilename.startsWith("preview_")
+                    ? "inline; filename=\"" + safeFilename + "\""
+                    : "attachment; filename=\"" + safeFilename + "\"";
             return Response.ok(filePath.toFile())
                     .header("Content-Disposition", disposition)
                     .build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST).build();
         } catch (Exception e) {
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
         }
@@ -227,15 +231,16 @@ public class VideoEditorController {
     public Response uploadFile(@PathParam("projectId") String projectId,
                                @FormParam("name") String name,
                                @RestForm("file") FileUpload file) {
-        logger.info("Request! name={} file={}", name, file.uploadedFile());
+        logger.info("Processing media upload");
         var project = projects.find(projectId)
                               .orElseThrow(() -> new NotFoundException("Project not found!!!"));
         try {
-            var tempDir = Files.createTempDirectory("upload");
-            var tempFile = tempDir.resolve(file.fileName());
+            var tempDir = fileStorageService.createTempDirectory("upload");
+            var safeFilename = SafePaths.safeBasename(file.fileName());
+            var tempFile = tempDir.resolve(safeFilename);
             Files.copy(file.uploadedFile(), tempFile, StandardCopyOption.REPLACE_EXISTING);
-            var media = fileStorageService.store(tempFile, file.fileName());
-            logger.info("Created media={}", media);
+            var media = fileStorageService.store(tempFile, safeFilename);
+            logger.info("Media upload completed");
             project.getMedias().add(media);
             projects.update(project);
             return Response.ok()
@@ -362,10 +367,7 @@ public class VideoEditorController {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         try {
-            var filePath = session.outputDir().resolve(path).normalize();
-            if (!filePath.startsWith(session.outputDir().normalize())) {
-                return Response.status(Response.Status.FORBIDDEN).build();
-            }
+            var filePath = SafePaths.resolveRelativeWithin(session.outputDir(), path);
             if (!Files.exists(filePath)) {
                 return Response.status(Response.Status.NOT_FOUND).build();
             }
@@ -374,6 +376,8 @@ public class VideoEditorController {
                     .type(contentType)
                     .header("Cache-Control", "no-cache")
                     .build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.FORBIDDEN).build();
         } catch (Exception e) {
             logger.error("Failed to serve preview file", e);
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();

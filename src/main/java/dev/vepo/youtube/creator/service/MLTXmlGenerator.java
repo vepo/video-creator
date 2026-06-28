@@ -15,13 +15,17 @@ import dev.vepo.youtube.creator.service.render.MltClipFilters;
 import dev.vepo.youtube.creator.service.render.MltFrameRate;
 import dev.vepo.youtube.creator.service.render.MltFrameRate.Rational;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 
 @ApplicationScoped
 public class MLTXmlGenerator {
 
+    @Inject
+    MediaService mediaService;
+
     public String generateMLTXml(String inputVideoPath, List<TrimOperation> trimOperations,
                                VideoSettings settings, String outputPath) throws IOException {
-        Path xmlPath = Files.createTempFile("mlt_project_", ".xml");
+        Path xmlPath = mediaService.createTempFile("mlt_project_", ".xml");
         Rational fps = profileRational(settings);
 
         try (BufferedWriter writer = Files.newBufferedWriter(xmlPath)) {
@@ -57,7 +61,7 @@ public class MLTXmlGenerator {
     }
 
     public String generateTimelineMLTXml(TimelineProject project) throws IOException {
-        Path xmlPath = Files.createTempFile("timeline_project_", ".xml");
+        Path xmlPath = mediaService.createTempFile("timeline_project_", ".xml");
         VideoSettings settings = project.getVideoSettings();
         Rational fps = profileRational(settings);
 

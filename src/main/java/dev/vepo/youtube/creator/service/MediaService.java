@@ -27,6 +27,8 @@ import com.mongodb.client.gridfs.GridFSBuckets;
 import com.mongodb.client.gridfs.model.GridFSUploadOptions;
 
 import dev.vepo.youtube.creator.AppConfig;
+import dev.vepo.youtube.creator.infra.ProcessPaths;
+import dev.vepo.youtube.creator.infra.SafePaths;
 import dev.vepo.youtube.creator.project.Media;
 import dev.vepo.youtube.creator.project.MediaType;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -53,11 +55,12 @@ public class MediaService {
             String[] command = { "soxi", "-D", audioAbsolutePath };
 
             ProcessBuilder processBuilder = new ProcessBuilder(command);
+            ProcessPaths.applySafePath(processBuilder.environment());
             processBuilder.redirectErrorStream(true);
 
             Process process = processBuilder.start();
             String output = readProcessOutput(process);
-            logger.info("Audio duration extraction: {}", output);
+            logger.info("Audio duration extraction completed");
 
             int exitCode = process.waitFor();
             if (exitCode != 0) {
@@ -85,7 +88,7 @@ public class MediaService {
             double seconds = Double.parseDouble(durationStr);
             return Math.round(seconds * 1000); // Convert to milliseconds
         } catch (NumberFormatException e) {
-            System.err.println("Error parsing soxi duration: " + durationStr);
+            logger.warn("Could not parse soxi duration output");
             return -1;
         }
     }
@@ -102,6 +105,7 @@ public class MediaService {
             };
 
             ProcessBuilder processBuilder = new ProcessBuilder(command);
+            ProcessPaths.applySafePath(processBuilder.environment());
             processBuilder.redirectErrorStream(true);
 
             Process process = processBuilder.start();
@@ -109,7 +113,7 @@ public class MediaService {
 
             int exitCode = process.waitFor();
             if (exitCode != 0) {
-                logger.error("Could not read video duration! {}", readProcessError(process));
+                logger.error("Could not read video duration");
                 return -1;
             }
 
@@ -191,7 +195,9 @@ public class MediaService {
     }
 
     private static String retrieveMimeType(Path resource) throws IOException {
-        var process = new ProcessBuilder("file", "-i", resource.toAbsolutePath().toString()).start();
+        var processBuilder = new ProcessBuilder("file", "-i", resource.toAbsolutePath().toString());
+        ProcessPaths.applySafePath(processBuilder.environment());
+        var process = processBuilder.start();
         try {
             int exitCode = process.waitFor();
             logger.info("Exit code: {}", exitCode);
@@ -215,7 +221,7 @@ public class MediaService {
 
     private static String retrieveHash(Path resource) throws IOException {
         try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
 
             try (InputStream is = Files.newInputStream(resource)) {
                 byte[] buffer = new byte[8192];
@@ -230,7 +236,7 @@ public class MediaService {
             return HexFormat.of().formatHex(hashBytes);
 
         } catch (NoSuchAlgorithmException e) {
-            throw new IOException("MD5 algorithm not available", e);
+            throw new IOException("SHA-256 algorithm not available", e);
         }
     }
 
@@ -271,15 +277,21 @@ public class MediaService {
         } catch (IOException e) {
             throw new RuntimeException("Could not create output directory", e);
         }
-        return outputPath.resolve(filename);
+        return SafePaths.resolveWithin(outputPath, filename);
+    }
+
+    public Path ensureOutputSubdir(String subdir) throws IOException {
+        Path subdirPath = getOutputPath(subdir);
+        Files.createDirectories(subdirPath);
+        return subdirPath;
+    }
+
+    public Path createTempDirectory(String prefix) throws IOException {
+        return SafePaths.createTempDirectory(Paths.get(appConfig.tempDir()), prefix);
     }
 
     public Path createTempFile(String prefix, String suffix) throws IOException {
-        Path tempPath = Paths.get(appConfig.tempDir());
-        if (!Files.exists(tempPath)) {
-            Files.createDirectories(tempPath);
-        }
-        return Files.createTempFile(tempPath, prefix, suffix);
+        return SafePaths.createTempFile(Paths.get(appConfig.tempDir()), prefix, suffix);
     }
 
     public Path materializeMedia(Media media) throws IOException {
@@ -294,7 +306,7 @@ public class MediaService {
         try (InputStream stream = getBucket().openDownloadStream(media.getMediaId())) {
             Files.copy(stream, destination, StandardCopyOption.REPLACE_EXISTING);
         }
-        logger.info("Materialized media {} to {}", media.getHash(), destination);
+        logger.info("Materialized media to temp file");
         return destination;
     }
 
@@ -302,7 +314,7 @@ public class MediaService {
         try {
             Files.deleteIfExists(Paths.get(filePath));
         } catch (IOException e) {
-            logger.warn("Could not delete file: {}", filePath);
+            logger.warn("Could not delete temp file", e);
         }
     }
 

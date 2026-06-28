@@ -6,7 +6,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import dev.vepo.youtube.creator.model.MediaClip;
@@ -14,17 +13,14 @@ import dev.vepo.youtube.creator.model.MediaTrack;
 import dev.vepo.youtube.creator.model.TimelineProject;
 import dev.vepo.youtube.creator.model.TrimOperation;
 import dev.vepo.youtube.creator.model.VideoSettings;
-import dev.vepo.youtube.creator.shared.UnitTest;
+import dev.vepo.youtube.creator.shared.QuarkusIntegrationTest;
+import jakarta.inject.Inject;
 
-@UnitTest
+@QuarkusIntegrationTest
 class MLTXmlGeneratorTest {
 
-    private MLTXmlGenerator generator;
-
-    @BeforeEach
-    void setUp() {
-        generator = new MLTXmlGenerator();
-    }
+    @Inject
+    MLTXmlGenerator generator;
 
     @Test
     void generatesMltXmlWithCustomDimensionsAndNoTrims() throws Exception {
