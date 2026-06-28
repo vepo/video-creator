@@ -226,6 +226,13 @@ public class VideoProcessingService {
 
     public java.nio.file.Path generateHlsPreview(TimelineProject project, java.nio.file.Path outputDir)
             throws IOException, InterruptedException {
+        return generateHlsPreview(project, outputDir, null);
+    }
+
+    public java.nio.file.Path generateHlsPreview(
+            TimelineProject project,
+            java.nio.file.Path outputDir,
+            java.util.function.IntConsumer progressCallback) throws IOException, InterruptedException {
         Files.createDirectories(outputDir);
         java.nio.file.Path manifest = outputDir.resolve("index.m3u8");
         String xmlPath = xmlGenerator.generateTimelineMLTXml(project);
@@ -233,6 +240,7 @@ public class VideoProcessingService {
 
         var command = new ArrayList<String>();
         command.add(appConfig.meltCommand());
+        command.add("-progress2");
         command.add(xmlPath);
         command.add("-consumer");
         command.add("avformat:" + manifest.toAbsolutePath());
@@ -257,12 +265,18 @@ public class VideoProcessingService {
             String line;
             while ((line = reader.readLine()) != null) {
                 logger.info("melt-hls: {}", line);
+                if (progressCallback != null) {
+                    MeltProgressParser.parsePercent(line).ifPresent(progressCallback);
+                }
             }
         }
         int exitCode = process.waitFor();
         fileStorageService.cleanupFile(xmlPath);
         if (exitCode != 0) {
             throw new RuntimeException("HLS preview generation failed with exit code " + exitCode);
+        }
+        if (progressCallback != null) {
+            progressCallback.accept(100);
         }
         return manifest;
     }

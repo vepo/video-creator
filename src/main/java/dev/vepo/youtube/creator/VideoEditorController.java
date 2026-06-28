@@ -97,7 +97,8 @@ public class VideoEditorController {
 
     public record UploadResponse(String fileId, String fileName, String filePath, String message) {}
     public record ErrorResponse(String error) {}
-    public record PreviewSessionResponse(String sessionId, String manifestUrl) {}
+    public record PreviewSessionResponse(String sessionId, String status, String manifestUrl, int percent,
+            Integer etaSeconds, String error) {}
     public record RenderResponse(String outputFilename, String downloadUrl, String message) {}
     public record RenderRequest(String format, String quality) {}
     public record RenderQueueRequest(String format, String quality) {}
@@ -301,9 +302,14 @@ public class VideoEditorController {
         projects.find(projectId)
                 .orElseThrow(() -> new NotFoundException("Project not found!!!"));
         try {
-            var session = previewSessionService.startSession(projectId);
-            String manifestUrl = "/preview/" + session.sessionId() + "/index.m3u8";
-            return Response.ok(new PreviewSessionResponse(session.sessionId(), manifestUrl)).build();
+            var status = previewSessionService.startSession(projectId);
+            return Response.ok(new PreviewSessionResponse(
+                    status.sessionId(),
+                    status.status(),
+                    status.manifestUrl(),
+                    status.percent(),
+                    status.etaSeconds(),
+                    status.error())).build();
         } catch (Exception e) {
             logger.error("Preview session failed", e);
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
@@ -312,13 +318,33 @@ public class VideoEditorController {
         }
     }
 
+    @GET
+    @Path("/api/editor/{projectId}/preview/session/{sessionId}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getPreviewSessionStatus(@PathParam("projectId") String projectId,
+                                            @PathParam("sessionId") String sessionId) {
+        var status = previewSessionService.getSessionStatus(sessionId);
+        if (status == null || !projectId.equals(status.projectId())) {
+            return Response.status(Response.Status.NOT_FOUND)
+                           .entity(new ErrorResponse("Preview session not found"))
+                           .build();
+        }
+        return Response.ok(new PreviewSessionResponse(
+                status.sessionId(),
+                status.status(),
+                status.manifestUrl(),
+                status.percent(),
+                status.etaSeconds(),
+                status.error())).build();
+    }
+
     @DELETE
     @Path("/api/editor/{projectId}/preview/session/{sessionId}")
     @Produces(MediaType.APPLICATION_JSON)
     public Response stopPreviewSession(@PathParam("projectId") String projectId,
                                        @PathParam("sessionId") String sessionId) {
-        var session = previewSessionService.getSession(sessionId);
-        if (session == null || !projectId.equals(session.projectId())) {
+        var status = previewSessionService.getSessionStatus(sessionId);
+        if (status == null || !projectId.equals(status.projectId())) {
             return Response.status(Response.Status.NOT_FOUND)
                            .entity(new ErrorResponse("Preview session not found"))
                            .build();

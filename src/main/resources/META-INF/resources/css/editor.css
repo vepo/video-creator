@@ -308,6 +308,47 @@ body {
     background: var(--vc-color-bg-app);
 }
 
+.file-item--uploading {
+    cursor: default;
+    opacity: 0.85;
+}
+
+.file-item--uploading:hover {
+    background: var(--vc-color-bg-panel-alt);
+}
+
+.file-item--error {
+    border-color: var(--vc-color-error);
+    cursor: default;
+}
+
+.file-item--error:hover {
+    background: var(--vc-color-bg-panel-alt);
+}
+
+.file-icon--loading {
+    color: var(--vc-color-text-muted);
+}
+
+.icon-spin {
+    animation: vc-icon-spin 0.85s linear infinite;
+}
+
+@keyframes vc-icon-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.file-status {
+    font-size: 12px;
+    color: var(--vc-color-text-muted);
+}
+
+.file-item--error .file-status {
+    color: var(--vc-color-error);
+}
+
 .file-icon {
     font-size: 18px;
     color: var(--vc-color-accent);

@@ -41,6 +41,7 @@ Each entry must include:
 | Select | `select` | editor | Enumerated settings | Change → project state | `theme.css` |
 | Visually hidden | `.visually-hidden` | editor | Screen-reader / programmatic only | Hidden from layout | `editor.css` |
 | Editor status bar | `#editorStatus`, `.editor-status--info/success/error` | editor | Global feedback (save, upload, errors) | `UI.notify()` — `aria-live="polite"` | `editor.html`, `editor.js` |
+| Documentation page | `/docs`, `.docs-content` | shared | In-app user guide (all features) | Rendered from `USER_GUIDE.md`; Help → About | `docs.html`, `DocumentationController` |
 | Tab coming soon | `#tabComingSoon`, `.tab-coming-soon` | *(removed)* | Replaced by `#tabPanelTransitions` / `#tabPanelEffects` | — |
 
 ---
@@ -59,6 +60,7 @@ Each entry must include:
 | `stop` | Stop preview |
 | `export` | Save, export actions |
 | `upload` | Upload media, drop zone |
+| `loading` | Upload in progress (spinning) |
 | `mute` | Track mute toggle |
 | `lock` | Track lock toggle |
 | `zoom-in` | Timeline zoom in |
@@ -139,6 +141,8 @@ Each entry must include:
 | Name | Selector | Purpose | Behavior | Source |
 |------|----------|---------|----------|--------|
 | Media row | `.file-item[item-hash]` | One media asset | Draggable; click selects; shows properties | `editor.js` |
+| Uploading media row | `.file-item.file-item--uploading[item-upload-id]` | Media being uploaded | Spinner + filename; not draggable | `editor.js` |
+| Failed upload row | `.file-item.file-item--error[item-upload-id]` | Failed upload | Error icon; auto-removed after 8s | `editor.js` |
 | Media icon | `.file-icon` | Type icon | `UI.mediaIcon()` | `editor.js` |
 | Media name | `.file-name` | Filename | Truncated with `title` tooltip | `editor.js` |
 | Media duration | `.file-duration` | Length | `UI.mediaDuration()` | `editor.js` |

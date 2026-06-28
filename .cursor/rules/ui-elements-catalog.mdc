@@ -12,6 +12,7 @@ The authoritative UI inventory is [`docs/UI_ELEMENTS.md`](docs/UI_ELEMENTS.md). 
 1. Read `docs/UI_ELEMENTS.md` to learn existing elements, selectors, and patterns.
 2. Reuse documented selectors and shared components (`.btn`, `.panel`, `item-hash`) — do not invent parallel hooks.
 3. Cross-check [`INTERFACE_FEATURES.md`](docs/INTERFACE_FEATURES.md) for feature status; cross-check [`DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) for visual tokens.
+4. Cross-check [`USER_GUIDE.md`](../../src/main/resources/documentation/USER_GUIDE.md) for user-facing docs (see `user-documentation.mdc`).
 
 ## After any UI change (required)
 
@@ -30,6 +31,7 @@ If a feature adds backend-only code today but exposes UI later, add a placeholde
 - [ ] Stable `id` or class documented in the catalog
 - [ ] Entry added/updated in `docs/UI_ELEMENTS.md`
 - [ ] `INTERFACE_FEATURES.md` updated if user-visible behavior changed
+- [ ] `USER_GUIDE.md` updated if user-visible behavior changed (`user-documentation.mdc`)
 - [ ] Nielsen heuristics satisfied (`nielsen-heuristics.mdc`)
 
 ## Do not

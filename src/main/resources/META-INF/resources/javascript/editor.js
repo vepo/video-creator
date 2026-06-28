@@ -893,7 +893,11 @@ const DragNDrop = {
 const UI = {
     notifyTimer: null,
     notify: function(message, type) {
+        this.setStatus(message, type || 'info');
+    },
+    setStatus: function(message, type, options) {
         type = type || 'info';
+        options = options || {};
         var bar = document.getElementById('editorStatus');
         if (!bar) {
             console.error(message);
@@ -905,12 +909,29 @@ const UI = {
             clearTimeout(this.notifyTimer);
             this.notifyTimer = null;
         }
-        if (type !== 'error') {
+        if (type !== 'error' && !options.persistent) {
             var self = this;
             this.notifyTimer = setTimeout(function() {
                 self.clearStatus();
             }, 6000);
         }
+    },
+    setPreviewProgress: function(percent, etaSeconds) {
+        var safePercent = Math.max(0, Math.min(100, Math.round(percent || 0)));
+        var message = 'Rendering preview: ' + safePercent + '%';
+        if (typeof etaSeconds === 'number' && etaSeconds > 0) {
+            message += ' — ETA ' + UI.formatEta(etaSeconds);
+        }
+        this.setStatus(message, 'info', { persistent: true });
+    },
+    formatEta: function(totalSeconds) {
+        totalSeconds = Math.max(0, Math.round(totalSeconds));
+        var minutes = Math.floor(totalSeconds / 60);
+        var seconds = totalSeconds % 60;
+        if (minutes > 0) {
+            return minutes + ':' + seconds.toString().padStart(2, '0');
+        }
+        return seconds + 's';
     },
     clearStatus: function() {
         var bar = document.getElementById('editorStatus');
@@ -993,6 +1014,87 @@ const UI = {
             iconId = 'image';
         }
         return '<svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#' + iconId + '"/></svg>';
+    },
+    mediaIconFromMime: function(mimeType) {
+        var iconId = 'unknown';
+        if (mimeType && mimeType.indexOf('video/') === 0) {
+            iconId = 'video';
+        } else if (mimeType && mimeType.indexOf('audio/') === 0) {
+            iconId = 'audio';
+        } else if (mimeType && mimeType.indexOf('image/') === 0) {
+            iconId = 'image';
+        }
+        return '<svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#' + iconId + '"/></svg>';
+    },
+    loadingIcon: function() {
+        return '<svg class="icon icon-spin" aria-hidden="true"><use href="/icons/icons.svg#loading"/></svg>';
+    },
+    addPendingUpload: function(uploadId, file) {
+        var mediaList = document.getElementById('media-list');
+        if (!mediaList) {
+            return;
+        }
+        var safeName = UI.escapeHtml(file.name || 'Untitled');
+        var typeIcon = UI.mediaIconFromMime(file.type);
+        mediaList.insertAdjacentHTML('afterbegin',
+            '<div class="file-item file-item--uploading" item-upload-id="' + uploadId + '"' +
+            ' aria-busy="true" aria-label="Uploading ' + safeName + '">' +
+            '<div class="file-icon file-icon--loading">' + UI.loadingIcon() + '</div>' +
+            '<div class="file-info">' +
+            '<div class="file-name" title="' + safeName + '">' + safeName + '</div>' +
+            '<div class="file-status">Uploading…</div>' +
+            '</div></div>');
+        MediaBin.refresh();
+    },
+    completePendingUpload: function(uploadId, media) {
+        var item = document.querySelector('[item-upload-id="' + uploadId + '"]');
+        if (!item) {
+            UI.reconciliateMedias();
+            return;
+        }
+        item.removeAttribute('item-upload-id');
+        item.removeAttribute('aria-busy');
+        item.setAttribute('item-hash', media.hash);
+        item.setAttribute('draggable', 'true');
+        item.classList.remove('file-item--uploading');
+        item.setAttribute('aria-label', media.name || 'Media');
+        var iconEl = item.querySelector('.file-icon');
+        if (iconEl) {
+            iconEl.classList.remove('file-icon--loading');
+            iconEl.innerHTML = UI.mediaIcon(media);
+        }
+        var statusEl = item.querySelector('.file-status');
+        if (statusEl) {
+            statusEl.className = 'file-duration';
+            statusEl.textContent = UI.mediaDuration(media.duration);
+        }
+        UI.setupElement(item, 'MEDIA');
+        MediaBin.refresh();
+    },
+    failPendingUpload: function(uploadId) {
+        var item = document.querySelector('[item-upload-id="' + uploadId + '"]');
+        if (!item) {
+            return;
+        }
+        item.classList.remove('file-item--uploading');
+        item.classList.add('file-item--error');
+        item.removeAttribute('aria-busy');
+        var iconEl = item.querySelector('.file-icon');
+        if (iconEl) {
+            iconEl.classList.remove('file-icon--loading');
+            iconEl.innerHTML = '<svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#status-error"/></svg>';
+        }
+        var statusEl = item.querySelector('.file-status');
+        if (statusEl) {
+            statusEl.textContent = 'Upload failed';
+        }
+        setTimeout(function() {
+            if (item.parentElement) {
+                item.parentElement.removeChild(item);
+            }
+            MediaBin.refresh();
+        }, 8000);
+        MediaBin.refresh();
     },
     mediaDuration: function(duration) {
         // Handle invalid inputs
@@ -2049,8 +2151,10 @@ const MediaLibrary = {
             return;
         }
         var uploadBtn = document.getElementById('uploadBtn');
+        var uploadId = 'upload-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
         MediaLibrary.uploadsInProgress += 1;
         UI.setButtonBusy(uploadBtn, true);
+        UI.addPendingUpload(uploadId, file);
         UI.notify('Uploading ' + file.name + '…', 'info');
         var formData = new FormData();
         formData.append('name', file.name);
@@ -2064,6 +2168,7 @@ const MediaLibrary = {
         .then(function(response) { return response.json(); })
         .then(function(data) {
             if (data.error) {
+                UI.failPendingUpload(uploadId);
                 UI.notify('Upload failed: ' + data.error + ' — try again.', 'error');
                 return;
             }
@@ -2071,11 +2176,12 @@ const MediaLibrary = {
                 currentProject.medias = [];
             }
             currentProject.medias.push(data);
-            UI.reconciliateMedias();
+            UI.completePendingUpload(uploadId, data);
             UI.notify('Added ' + file.name + ' to project.', 'success');
         })
         .catch(function(error) {
             console.error('Error:', error);
+            UI.failPendingUpload(uploadId);
             UI.notify('Upload failed: ' + error.message + ' — check your connection and try again.', 'error');
         })
         .finally(function() {
@@ -2723,6 +2829,14 @@ const MediaBin = {
         }
         var items = Array.from(list.querySelectorAll('.file-item'));
         items.sort(function(a, b) {
+            var uploadA = a.hasAttribute('item-upload-id');
+            var uploadB = b.hasAttribute('item-upload-id');
+            if (uploadA && !uploadB) {
+                return -1;
+            }
+            if (!uploadA && uploadB) {
+                return 1;
+            }
             var mediaA = Project.findMedia(a.getAttribute('item-hash'));
             var mediaB = Project.findMedia(b.getAttribute('item-hash'));
             if (!mediaA || !mediaB) {
@@ -2845,6 +2959,7 @@ const Preview = {
     manifestUrl: null,
     ws: null,
     refreshTimer: null,
+    progressPollTimer: null,
     shuttleSpeed: 0,
     init: function() {
         this.container = document.querySelector('.preview-container');
@@ -3034,7 +3149,7 @@ const Preview = {
         var previewPlayBtn = document.getElementById('previewPlayBtn');
         UI.setButtonBusy(playBtn, true);
         UI.setButtonBusy(previewPlayBtn, true);
-        UI.notify('Starting preview session…', 'info');
+        UI.setPreviewProgress(0, null);
         ProjectSave.save({ silent: true })
             .then(function() {
                 return fetch('/api/editor/' + currentProject.id + '/preview/session', { method: 'POST' });
@@ -3054,10 +3169,13 @@ const Preview = {
                     throw new Error(data.error);
                 }
                 Preview.sessionId = data.sessionId;
+                UI.setPreviewProgress(data.percent || 0, data.etaSeconds);
+                return Preview.waitForSessionReady(data.sessionId);
+            })
+            .then(function(data) {
+                Preview.sessionId = data.sessionId;
                 Preview.manifestUrl = data.manifestUrl;
-                Preview.durationMs = data.durationSeconds
-                    ? Math.round(data.durationSeconds * 1000)
-                    : Project.contentDurationMs();
+                Preview.durationMs = Project.contentDurationMs();
                 Preview.connectWebSocket(data.sessionId);
                 Preview.loadHls(data.manifestUrl);
                 Preview.showVideo();
@@ -3077,10 +3195,50 @@ const Preview = {
                 UI.notify('Preview failed: ' + err.message + ' — check MLT status and try again.', 'error');
             })
             .finally(function() {
+                Preview.stopProgressPoll();
                 Preview.running = false;
                 UI.setButtonBusy(document.getElementById('playBtn'), false);
                 UI.setButtonBusy(document.getElementById('previewPlayBtn'), false);
             });
+    },
+    stopProgressPoll: function() {
+        if (this.progressPollTimer) {
+            clearTimeout(this.progressPollTimer);
+            this.progressPollTimer = null;
+        }
+    },
+    waitForSessionReady: function(sessionId) {
+        var self = this;
+        return new Promise(function(resolve, reject) {
+            function poll() {
+                fetch('/api/editor/' + currentProject.id + '/preview/session/' + sessionId)
+                    .then(function(response) {
+                        if (!response.ok) {
+                            throw new Error('Preview status request failed');
+                        }
+                        return response.json();
+                    })
+                    .then(function(data) {
+                        if (data.status === 'ready') {
+                            self.stopProgressPoll();
+                            resolve(data);
+                            return;
+                        }
+                        if (data.status === 'failed') {
+                            self.stopProgressPoll();
+                            reject(new Error(data.error || 'Preview rendering failed'));
+                            return;
+                        }
+                        UI.setPreviewProgress(data.percent || 0, data.etaSeconds);
+                        self.progressPollTimer = setTimeout(poll, 400);
+                    })
+                    .catch(function(err) {
+                        self.stopProgressPoll();
+                        reject(err);
+                    });
+            }
+            poll();
+        });
     },
     loadHls: function(manifestUrl) {
         if (!this.video) {
@@ -3142,6 +3300,7 @@ const Preview = {
         }
     },
     disconnectSession: function() {
+        this.stopProgressPoll();
         this.disconnectWebSocket();
         this.sessionId = null;
         this.manifestUrl = null;
@@ -3425,7 +3584,7 @@ const MenuBar = {
                 UI.notify(EditSettings.rippleDelete ? 'Ripple delete enabled.' : 'Ripple delete disabled.', 'info');
                 break;
             case 'help-about':
-                UI.notify('Video Creator — non-linear video editor (v1.0.0)', 'info');
+                window.open('/docs', '_blank', 'noopener,noreferrer');
                 break;
         }
     }

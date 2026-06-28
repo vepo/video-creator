@@ -2,7 +2,7 @@
 
 Prototype status of the web UI (`index.html`, `editor.html`, `index.js`, `editor.js`). A feature is **implemented** when the interface exposes working behavior (not merely static markup or placeholder controls).
 
-**Summary:** 70 implemented · 0 not implemented · 0 partial
+**Summary:** 78 implemented · 0 not implemented · 0 partial
 
 > **Note:** Transitions and effects are stored on clips and exposed in the UI; MLT render integration for transition/effect filters is not yet wired in `TimelineAssembler`. For a full **Kdenlive parity** roadmap (implemented / partial / missing), see [`KDENLIVE_FEATURES.md`](KDENLIVE_FEATURES.md).
 
@@ -41,7 +41,7 @@ Three functional zones: header, projects panel, system status panel. Kdenlive-in
 | - [x] | File menu actions (New, Open, Save, Export) |
 | - [x] | Edit menu actions (Cut, Delete, Deselect) |
 | - [x] | View menu actions (Zoom in/out, Fit timeline) |
-| - [x] | Help menu actions (About) |
+| - [x] | Help menu — opens user documentation (`/docs`) in a new tab |
 
 ---
 
@@ -59,7 +59,8 @@ Three functional zones: header, projects panel, system status panel. Kdenlive-in
 | - [x] | Drag media from the library onto the timeline |
 | - [x] | Upload button opens file picker and uploads media |
 | - [x] | Remove media from the project |
-| - [x] | Rename media |
+| - [x] | Upload progress row in media list (spinner + name while uploading) |
+| - [x] | Search and sort media in the library |
 
 ---
 
@@ -90,7 +91,8 @@ Three functional zones: header, projects panel, system status panel. Kdenlive-in
 | - [x] | Add or remove tracks |
 | - [x] | Mute track |
 | - [x] | Lock track |
-| - [x] | Interactive playhead scrubbing |
+| - [x] | Playhead scoped to track areas (not full window height) |
+| - [x] | Mouse-drag clips between tracks and times |
 
 ---
 
@@ -103,7 +105,8 @@ Three functional zones: header, projects panel, system status panel. Kdenlive-in
 | - [x] | Header Preview button |
 | - [x] | Header Stop button |
 | - [x] | Preview transport controls (⏮ ⏪ ▶ ⏩ ⏭) |
-| - [x] | Request timeline preview from API (`POST /api/editor/{id}/preview`) |
+| - [x] | Preview render progress and ETA in status bar |
+| - [x] | HLS preview session with progress polling |
 
 ---
 
@@ -154,6 +157,7 @@ Three functional zones: header, projects panel, system status panel. Kdenlive-in
 | - [x] | Persist project name, description, screen size, frame rate, duration edits |
 | - [x] | Auto-save (debounced) and explicit Save action |
 | - [x] | Error toast / notification system (`UI.notify` → `#editorStatus`) |
+| - [x] | User documentation page (`GET /docs`) |
 
 ---
 
@@ -169,7 +173,9 @@ Three functional zones: header, projects panel, system status panel. Kdenlive-in
 | - [x] | `POST /api/editor/{projectId}/media` | Media upload |
 | - [x] | `DELETE /api/editor/{projectId}/media/{hash}` | Remove media |
 | - [x] | `PUT /api/editor/{projectId}/media/{hash}` | Rename media |
-| - [x] | `POST /api/editor/{projectId}/preview/session` | HLS preview session (replaces file-based preview) |
+| - [x] | `GET /docs` | User documentation |
+| - [x] | `POST /api/editor/{projectId}/preview/session` | Start HLS preview session |
+| - [x] | `GET /api/editor/{projectId}/preview/session/{sessionId}` | Preview render progress |
 | - [x] | `DELETE /api/editor/{projectId}/preview/session/{sessionId}` | Stop preview session |
 | - [x] | `GET /preview/{sessionId}/{path}` | HLS manifest and segments |
 | - [x] | `POST /api/editor/{projectId}/render` | Export render (format + quality) |

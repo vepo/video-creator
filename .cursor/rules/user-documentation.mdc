@@ -1,0 +1,54 @@
+---
+description: Keep user documentation in sync when features change
+alwaysApply: true
+---
+
+# User documentation maintenance
+
+The in-app user guide is rendered from a single source file and served at **`GET /docs`**.
+
+| Item | Location |
+|------|----------|
+| **Source (edit this)** | [`src/main/resources/documentation/USER_GUIDE.md`](../../src/main/resources/documentation/USER_GUIDE.md) |
+| Renderer | `UserDocumentationService` (CommonMark → HTML) |
+| Page template | [`src/main/resources/templates/docs.html`](../../src/main/resources/templates/docs.html) |
+| Styles | [`src/main/resources/META-INF/resources/css/docs.css`](../../src/main/resources/META-INF/resources/css/docs.css) |
+| Entry point | Help → **About Video Creator** (`help-about` → opens `/docs` in a new tab) |
+
+## When to update (same task / PR)
+
+Update `USER_GUIDE.md` whenever you add, remove, or materially change **user-visible** behavior, including:
+
+- Menu items, toolbar buttons, keyboard shortcuts
+- Timeline, preview, export, or media-library workflows
+- Status bar messages or progress indicators
+- New or changed REST endpoints consumed by the UI
+- Requirements (MLT, MongoDB, supported formats)
+
+Also update in the **same change**:
+
+1. [`docs/INTERFACE_FEATURES.md`](../../docs/INTERFACE_FEATURES.md) — feature checklist status
+2. [`docs/UI_ELEMENTS.md`](../../docs/UI_ELEMENTS.md) — if UI elements were added or renamed (see `ui-elements-catalog.mdc`)
+
+## Required edits in USER_GUIDE.md
+
+1. Describe the feature in the correct section (or add a section).
+2. Include **how to access** it (menu path, button, shortcut).
+3. Bump the **`Last updated:`** line at the top (ISO date: `YYYY-MM-DD`).
+4. Keep tables and lists accurate — remove deleted features.
+
+## Do not
+
+- Edit rendered HTML in `docs.html` for prose (layout only).
+- Ship user-facing features without documenting them in `USER_GUIDE.md`.
+- Duplicate long prose in README; link to `/docs` instead.
+
+## Verify
+
+1. `./mvnw quarkus:dev` → open `/docs` and confirm the new text appears.
+2. Editor → **Help → About Video Creator** opens the same page in a new tab.
+
+## Related
+
+- [`ui-elements-catalog.mdc`](ui-elements-catalog.mdc) — UI inventory
+- [`AGENTS.md`](../../AGENTS.md) — agent index
