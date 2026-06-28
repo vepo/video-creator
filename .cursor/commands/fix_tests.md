@@ -1,0 +1,1 @@
+../../../contraponto/.cursor/commands/fix_tests.md

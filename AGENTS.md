@@ -94,7 +94,9 @@ Place tests in `src/test/java` mirroring the production package structure. Use `
 
 ## Cursor Rules
 
-Project rules live in `.cursor/rules/`:
+Project rules live in `.cursor/rules/`. **Contraponto rules** are symlinked from [`../contraponto/.cursor/rules/`](../contraponto/.cursor/rules/) (sibling repo) so both projects stay aligned; edit them in contraponto, not here.
+
+### Video Creator (local)
 
 | Rule | Scope |
 |------|-------|
@@ -103,10 +105,45 @@ Project rules live in `.cursor/rules/`:
 | `html-standards.mdc` | Qute templates and page markup |
 | `nielsen-heuristics.mdc` | Nielsen usability heuristics for UI |
 | `ui-elements-catalog.mdc` | UI inventory — read/update `docs/UI_ELEMENTS.md` |
+| `visual-identity.mdc` | Kdenlive-inspired theme tokens |
 | `tdd-development.mdc` | Test-first workflow |
 | `ddd-domain-language.mdc` | Domain-driven naming and boundaries |
 | `architecture-correctness.mdc` | Layering and dependency rules |
 | `tell-dont-ask.mdc` | Object-oriented design |
+
+### Inherited from Contraponto (symlinked)
+
+| Rule | Scope |
+|------|-------|
+| `contraponto-core.mdc` | Always-on stack, endpoints, data access |
+| `contraponto-java.mdc` | Java conventions, packages, DI |
+| `contraponto-format-imports.mdc` | Spotless / Eclipse formatter, import order |
+| `contraponto-layered-architecture.mdc` | `*Endpoint` / `*Service` / `*Repository` layering |
+| `contraponto-tell-dont-ask.mdc` | Intent methods on entities/services |
+| `contraponto-law-of-demeter.mdc` | No train-wreck getter chains |
+| `contraponto-no-method-bypass-allowed.mdc` | No pass-through wrappers |
+| `contraponto-jpa.mdc` | Criteria / JPQL / native query style |
+| `contraponto-strings.mdc` | `.formatted()` / `StringBuilder` |
+| `contraponto-tooling-languages.mdc` | No Python; bash/JBang scripts; browser-only JS |
+| `static-analysis.mdc` | Finish gate: compile, test, Spotless, Sonar |
+| `contraponto-tests.mdc` | `@WebTest`, `App`, `Given`, fixed test times |
+| `test-headless-github-actions.mdc` | `GITHUB_ACTIONS=true` for headless WebTests |
+| `contraponto-javascript.mdc` | HTMX / browser JS patterns |
+| `contraponto-css.mdc` | CSS conventions |
+| `contraponto-ui.mdc` | UI component patterns |
+| `contraponto-palette.mdc` | Design tokens (when applicable) |
+| `contraponto-pagination.mdc` | List UIs |
+| `contraponto-confirm-modals.mdc` | Confirm modals (no `hx-confirm`) |
+| `contraponto-seo.mdc` | Meta description, crawlable links |
+| `contraponto-bounded-contexts.mdc` | Modular monolith boundaries |
+| `development-experience.mdc` | Dev workflow and quality bar |
+| `domain-model.mdc` | Domain spec maintenance |
+| `feature-catalog.mdc` | UI feature index maintenance |
+| `dev-import-sql-safety.mdc` | Dev SQL import safety |
+| `docker-smoke-prod-sync.mdc` | docker-smoke ↔ prod sync |
+| `greenfield-deployment-tutorial.mdc` | Deployment tutorial sync |
+
+Cursor commands from contraponto are symlinked in `.cursor/commands/` (`fix_tests`, `fix_sonar_issues`, `increase_coverage`).
 
 ## Conventions
 
