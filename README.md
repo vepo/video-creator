@@ -143,6 +143,15 @@ Agent and contribution conventions: [`AGENTS.md`](AGENTS.md).
 
 ---
 
+## Contributing
+
+We welcome bug reports, documentation improvements, and pull requests. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, workflow, and PR guidelines.
+Please follow our [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). To report security
+issues privately, see [`SECURITY.md`](SECURITY.md).
+
+---
+
 ## Documentation
 
 | Document | Audience | Contents |
@@ -158,4 +167,4 @@ Agent and contribution conventions: [`AGENTS.md`](AGENTS.md).
 
 ## License
 
-See repository license file if present; otherwise treat as private / unspecified until added.
+This project is licensed under the [GNU General Public License v2](LICENSE).
