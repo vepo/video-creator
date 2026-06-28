@@ -5,9 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import io.quarkus.test.junit.QuarkusTest;
+import dev.vepo.youtube.creator.shared.UnitTest;
 
-@QuarkusTest
+@UnitTest
 class MeltProgressParserTest {
 
     @Test

@@ -1,47 +1,35 @@
 # Video Creator — User Guide
 
-Last updated: 2026-06-28
+Last updated: 2026-06-27
 
-Video Creator is a browser-based non-linear video editor. Create **projects**, import **media**, arrange **clips** on a multi-track **timeline**, preview your edit, and **export** a finished video. Rendering uses [MLT](https://www.mltframework.org/) (`melt`) on the server.
+Video Creator is a browser-based non-linear video editor. Create **projects**, import **media**, arrange **clips** on a multi-track **timeline**, preview your edit, and **export** a finished video — all from your web browser.
 
 ---
 
 ## Getting started
 
-1. Open the **main window** at `/`.
+1. Open the **main window** (home page).
 2. Click **New Project** or open an existing project from the table.
 3. In the **editor**, upload media to the **Project Files** panel.
 4. Drag media onto **timeline tracks** to create clips.
-5. Click **Preview** to watch an HLS stream of your timeline.
-6. Click **Export Video** to render MP4, WebM, or MOV.
-
-### System requirements
-
-| Component | Purpose |
-|-----------|---------|
-| Java 21+ | Application server |
-| MongoDB | Projects and media storage (GridFS) |
-| MLT (`melt`) | Timeline preview and export |
-| FFmpeg / Sox | Media analysis |
-
-Check **System Status** on the main window for MLT and database health.
+5. Click **Preview** to watch your timeline.
+6. Click **Export Video** to save MP4, WebM, or MOV.
 
 ---
 
 ## Main window
 
-The home page lists all projects and shows system status.
+The home page lists all projects and shows whether the app is ready to preview and export.
 
 | Feature | How to use |
 |---------|------------|
-| New Project | **New Project** button — opens a fresh editor at `/editor/new` |
+| New Project | **New Project** button — opens a fresh editor |
 | Open project | Click project name or **Open** in the table |
 | Search projects | Type in **Search projects…** to filter the table |
 | Rename project | **Rename** on a project row |
 | Delete project | **Delete** on a project row (confirmation required) |
 | Recent projects | Shown when you return to the main window after editing |
-| System status | MLT, video engine, and database connection indicators |
-| Health refresh | MLT status polled via `/api/video/health` |
+| System status | Indicators for preview/export readiness and storage |
 
 ---
 
@@ -55,9 +43,9 @@ The editor has three columns:
 | **Center — Preview & Timeline** | Video preview, transport controls, multi-track timeline |
 | **Right — Properties** | Selected item settings, transitions, effects |
 
-The **header** provides Save, Preview, Stop, Export, and menu bar actions. The **status bar** at the bottom shows save/upload/preview/export feedback.
+The **header** provides Save, Preview, Stop, Export, and menu bar actions. The **status bar** at the bottom shows save, upload, preview, and export feedback.
 
-Open documentation anytime via **Help → About Video Creator** (opens this guide in a new tab).
+Open this guide anytime via **Help → About Video Creator** (opens in a new tab).
 
 ---
 
@@ -65,8 +53,8 @@ Open documentation anytime via **Help → About Video Creator** (opens this guid
 
 | Action | Description |
 |--------|-------------|
-| New Project | Navigate to `/editor/new` |
-| Open Projects… | Return to main window |
+| New Project | Start a new empty project in the editor |
+| Open Projects… | Return to the main window |
 | Save | Save project immediately (also auto-saves) |
 | Export Video… | Open export modal |
 
@@ -173,20 +161,18 @@ Arrange clips on video and audio tracks with professional NLE-style controls.
 
 ## Preview
 
-Watch a lower-quality HLS stream of your timeline without exporting.
+Watch your timeline without exporting. Preview quality is optimized for speed so you can iterate quickly.
 
 | Feature | Description |
 |---------|-------------|
 | Start preview | **Preview** in header or preview transport **Play** |
-| Progress | Status bar shows **Rendering preview: N% — ETA** while melt encodes |
+| Progress | Status bar shows **Rendering preview: N% — ETA** while the preview is prepared |
 | Stop | **Stop** clears preview and resets playhead |
 | Transport | Previous frame, rewind, play/pause, forward, next frame |
 | Fullscreen | **Full** button or double-click preview area |
 | Shuttle keys | **J** rewind / slow, **K** pause, **L** forward / faster (when video loaded) |
 | Playhead sync | Playhead follows playback; scrubbing seeks preview |
-| Requirements | MLT must be installed; project must have clips |
-
-Preview uses an HLS session (`POST /api/editor/{id}/preview/session`) with live progress polling until the manifest is ready.
+| Requirements | The project must contain at least one clip; preview must be available (see System status on the main window) |
 
 ---
 
@@ -236,12 +222,10 @@ Changes auto-save after editing (debounced).
 |---------|-------------|
 | Open modal | **Export Video** header button or File menu |
 | Format | MP4, WebM, or MOV |
-| Quality | High, Medium, or Low (CRF / preset presets) |
+| Quality | High, Medium, or Low |
 | Progress | Modal progress bar: save → render → complete |
 | Download | Link appears when render finishes |
-| Cancel | Close modal (render may continue server-side for queued jobs) |
-
-Rendered files download from `/download/{filename}`.
+| Cancel | Close modal (export may continue in the background) |
 
 ---
 
@@ -278,39 +262,13 @@ Info and success messages auto-clear after a few seconds; errors stay until the 
 
 ---
 
-## API endpoints (UI)
-
-| Method | Path | Used for |
-|--------|------|----------|
-| GET | `/` | Main window |
-| GET | `/docs` | This documentation page |
-| GET | `/editor/{id}` | Editor |
-| PUT | `/api/editor/{projectId}` | Save project |
-| DELETE | `/api/editor/{projectId}` | Delete project |
-| POST | `/api/editor/{projectId}/media` | Upload media |
-| DELETE | `/api/editor/{projectId}/media/{hash}` | Remove media |
-| PUT | `/api/editor/{projectId}/media/{hash}` | Rename media |
-| POST | `/api/editor/{projectId}/preview/session` | Start HLS preview |
-| GET | `/api/editor/{projectId}/preview/session/{sessionId}` | Preview render progress |
-| DELETE | `/api/editor/{projectId}/preview/session/{sessionId}` | Stop preview |
-| GET | `/preview/{sessionId}/{path}` | HLS manifest and segments |
-| POST | `/api/editor/{projectId}/render` | Export render |
-| POST | `/api/editor/{projectId}/render/queue` | Queue background render |
-| POST | `/api/editor/{projectId}/duplicate` | Duplicate project |
-| GET | `/download/{filename}` | Download export |
-| GET | `/api/video/health` | System health check |
-
----
-
 ## Tips & troubleshooting
 
 | Issue | What to try |
 |-------|-------------|
-| Preview disabled | Install MLT (`melt`); check System Status on main window |
-| Preview slow | First preview encodes HLS segments; status bar shows % and ETA |
+| Preview unavailable | Check **System status** on the main window; add at least one clip to the timeline |
+| Preview slow | First preview takes longer to prepare; the status bar shows progress and estimated time |
 | Cut does nothing | Move playhead **inside** a clip (not on edges) |
 | Cannot drop on track | Match media type (video/image → video track, audio → audio track) |
 | Track locked | Unlock track before moving or trimming clips |
-| Export fails | Check MLT logs; verify clips reference valid media |
-
-For developer architecture and roadmap, see the repository `docs/` folder (`ARCHITECTURE.md`, `KDENLIVE_FEATURES.md`, `INTERFACE_FEATURES.md`).
+| Export fails | Verify all clips use valid media; try again after saving the project |
