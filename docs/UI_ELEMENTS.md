@@ -41,7 +41,7 @@ Each entry must include:
 | Select | `select` | editor | Enumerated settings | Change → project state | `theme.css` |
 | Visually hidden | `.visually-hidden` | editor | Screen-reader / programmatic only | Hidden from layout | `editor.css` |
 | Editor status bar | `#editorStatus`, `.editor-status--info/success/error` | editor | Global feedback (save, upload, errors) | `UI.notify()` — `aria-live="polite"` | `editor.html`, `editor.js` |
-| Tab coming soon | `#tabComingSoon`, `.tab-coming-soon` | editor | Placeholder for unimplemented tabs | Shown when Transitions/Effects tab selected | `editor.html`, `editor.js` |
+| Tab coming soon | `#tabComingSoon`, `.tab-coming-soon` | *(removed)* | Replaced by `#tabPanelTransitions` / `#tabPanelEffects` | — |
 
 ---
 
@@ -86,12 +86,15 @@ Each entry must include:
 |------|----------|---------|----------|--------|
 | Projects panel | `.projects-panel` | Project list region | — | `index.html` |
 | New Project (header) | `.panel-header-actions .btn-primary` | Create project | Link → `/editor/new` | `index.html` |
+| Project search | `#projectSearch` | Filter project list | Client-side filter on name | `index.html`, `index.js` |
 | Empty state | `.empty-state` | No projects message | Shown when list empty; includes New Project link | `index.html` |
 | Project table | `.project-table` | Project rows | — | `index.html` |
-| Project name link | `.project-name a` | Open project | Link → `/editor/{id}` | `index.html` |
+| Project name link | `.project-name a`, `.project-link` | Open project | Link → `/editor/{id}` | `index.html` |
 | Created date | `.col-created.epoch-milli` | Creation timestamp | Formatted by `index.js` on load | `index.html`, `index.js` |
 | Media count | `.col-media` | Number of media items | Server-rendered count | `index.html` |
 | Open button | `.col-action .btn-secondary` | Open project | Link → `/editor/{id}` | `index.html` |
+| Rename project | `.btn-rename-project` | Rename from main window | `PUT /api/projects/{id}` | `index.html`, `index.js` |
+| Delete project | `.btn-delete-project` | Delete project | Confirm → `DELETE /api/editor/{id}` | `index.html`, `index.js` |
 
 ### System status panel
 
@@ -113,7 +116,8 @@ Each entry must include:
 |------|----------|---------|----------|--------|
 | Editor header | `.editor-header` | Top toolbar | — | `editor.html` |
 | Back to projects | `.logo` | Return to main window | Link → `/` | `editor.html` |
-| Menu bar | `.menu-bar` | File / Edit / View / Help | Placeholder — `.menu-item--disabled`, title "Coming soon" | `editor.html` |
+| Menu bar | `.menu-bar` | File / Edit / View / Help | Dropdown menus via `MenuBar.init()` | `editor.html`, `editor.js` |
+| Menu dropdown | `.menu-dropdown`, `.menu-dropdown-item` | Menu actions | `MenuBar.handleAction()` | `editor.html`, `editor.js` |
 | Save | `#saveBtn` | Persist project | `ProjectSave.save()` | `editor.html`, `editor.js` |
 | Play (header) | `#playBtn` | Generate timeline preview | `Preview.generate()` — disabled while busy | `editor.html`, `editor.js` |
 | Stop (header) | `#stopBtn` | Stop preview | `Preview.stop()` | `editor.html`, `editor.js` |
@@ -157,7 +161,8 @@ Each entry must include:
 | Timeline container | `.timeline-container` | Tracks + ruler + playhead | Wheel zoom | `editor.html`, `editor.js` |
 | Add video track | `#addVideoTrackBtn` | New video track | `Project.addTrack('VIDEO')` | `editor.html`, `editor.js` |
 | Add audio track | `#addAudioTrackBtn` | New audio track | `Project.addTrack('AUDIO')` | `editor.html`, `editor.js` |
-| Cut clip | `#cutClipBtn` | Split at playhead | `Project.cutSelectedClipAtPlayhead()` — disabled when no clip selected | `editor.html`, `editor.js` |
+| Cut clip | `#cutClipBtn` | Split at playhead | `Project.cutAtPlayhead()` — splits video + synced audio together | `editor.html`, `editor.js` |
+| Playhead timecode | `#playheadTimeLabel` | Current timeline position | Updated by `Playhead.updateVisual()` | `editor.html`, `editor.js` |
 | Delete clip | `#deleteClipBtn` | Remove selected clip | `Project.requestDeleteClip()` — confirms, disabled when no selection | `editor.html`, `editor.js` |
 | Zoom in | `#timelineZoomInBtn` | Increase timeline zoom | `TimelineZoom.zoomIn()` | `editor.html`, `editor.js` |
 | Zoom out | `#timelineZoomOutBtn` | Decrease timeline zoom | `TimelineZoom.zoomOut()` | `editor.html`, `editor.js` |
@@ -192,6 +197,9 @@ Each entry must include:
 | Selected clip | `.clip.selected` | Active clip | Orange border | `editor.css` |
 | Dragging clip | `.clip.clip--dragging` | In-drag state | Reduced opacity | `editor.js` |
 | Shadow clip (drop preview) | `[item-temp-hash]` | Ghost while dragging | Removed on drop/cancel | `editor.js` |
+| Trim handle | `.clip-trim`, `.clip-trim--left`, `.clip-trim--right` | Trim in/out on timeline | `ClipTrim` drag | `editor.js`, `editor.css` |
+| Clip inline edit | `.clip-btn--edit` | Open clip properties | Selects clip + Properties tab | `editor.js` |
+| Clip inline delete | `.clip-btn--delete` | Delete clip | `Project.requestDeleteClip()` | `editor.js` |
 | Time mark | `.time-mark` | Ruler label | Positioned by zoom | `editor.js` |
 
 ### Properties (right panel)
@@ -199,13 +207,15 @@ Each entry must include:
 | Name | Selector | Purpose | Behavior | Source |
 |------|----------|---------|----------|--------|
 | Properties panel | `.properties-panel` | Inspector sidebar | — | `editor.html` |
-| Tab: Properties | `.tab.active` (first) | Properties view | Tab switch (visual only) | `editor.html`, `editor.js` |
-| Tab: Transitions | `.tab` (second) | Transitions view | Shows `#tabComingSoon` message | `editor.html`, `editor.js` |
-| Tab: Effects | `.tab` (third) | Effects view | Shows `#tabComingSoon` message | `editor.html`, `editor.js` |
-| Tab coming soon banner | `#tabComingSoon` | Unimplemented tab notice | Visible on Transitions/Effects tabs | `editor.html`, `editor.js` |
+| Tab: Properties | `.tab` (Properties) | Properties view | `UI.switchTab('Properties')` | `editor.html`, `editor.js` |
+| Tab: Transitions | `.tab` (Transitions) | Transitions view | `#tabPanelTransitions` | `editor.html`, `editor.js` |
+| Tab: Effects | `.tab` (Effects) | Effects view | `#tabPanelEffects` | `editor.html`, `editor.js` |
+| Transitions panel | `#tabPanelTransitions`, `#cmb-transition`, `#applyTransitionBtn` | Apply transition to clip | `Project.applyClipTransition()` | `editor.html`, `editor.js` |
+| Effects panel | `#tabPanelEffects`, `#cmb-effect`, `#applyEffectBtn` | Apply effect to clip | `Project.applyClipEffect()` | `editor.html`, `editor.js` |
 | Empty selection hint | `#item-properties-empty` | No selection message | Hidden when item selected | `editor.html`, `editor.js` |
-| Item properties | `#item-properties` | Media/clip fields | Built by `UI.showItemProperties()` | `editor.html`, `editor.js` |
+| Item properties | `#item-properties` | Media/clip fields | Built by `UI.setupItemProperties()` | `editor.html`, `editor.js` |
 | Project name | `#txt-project-name` | Project title | `UI.bindProjectProperties()` | `editor.html`, `editor.js` |
+| Project description | `#txt-project-description` | Project notes | Auto-save on change | `editor.html`, `editor.js` |
 | Screen size | `#cmb-screen-size` | Output resolution | Change → project settings | `editor.html`, `editor.js` |
 | Frame rate | `#cmb-frame-rate` | Project FPS | Change → project settings | `editor.html`, `editor.js` |
 | Project duration | `#dur-project` | Timeline length | H/M/S/ms spin controls | `editor.html`, `editor.js` |
@@ -242,6 +252,7 @@ Each entry must include:
 | Key | Action | Source |
 |-----|--------|--------|
 | `Delete` / `Backspace` | Delete selected clip with confirmation (when focus not in input) | `editor.js` |
+| `S` | Cut / split clip at playhead (when playhead is inside a clip) | `editor.js` |
 
 ---
 

@@ -29,6 +29,7 @@
                 <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#folder"/></svg>
                 <span>Projects</span>
                 <div class="panel-header-actions">
+                    <input type="search" id="projectSearch" class="project-search" placeholder="Search projects…" aria-label="Search projects">
                     <a href="/editor/new" class="btn btn-primary">
                         <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#project"/></svg>
                         New Project
@@ -53,15 +54,17 @@
                     </thead>
                     <tbody>
                         {#for project in projects}
-                        <tr>
+                        <tr data-project-id="{project.id.toHexString}" data-project-name="{project.name ?: 'Untitled project'}">
                             <td class="project-name">
                                 <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#project"/></svg>
-                                <a href="/editor/{project.id}">{project.name ?: 'Untitled project'}</a>
+                                <a href="/editor/{project.id}" class="project-link">{project.name ?: 'Untitled project'}</a>
                             </td>
                             <td class="col-created epoch-milli">{project.createdAt.toEpochMilli ?: ''}</td>
                             <td class="col-media">{project.medias.size()}</td>
                             <td class="col-action">
                                 <a href="/editor/{project.id}" class="btn btn-secondary btn-sm">Open</a>
+                                <button type="button" class="btn btn-secondary btn-sm btn-rename-project" data-project-id="{project.id.toHexString}" title="Rename project">Rename</button>
+                                <button type="button" class="btn btn-secondary btn-sm btn-delete-project" data-project-id="{project.id.toHexString}" title="Delete project">Delete</button>
                             </td>
                         </tr>
                         {/for}

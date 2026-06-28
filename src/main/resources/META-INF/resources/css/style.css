@@ -110,6 +110,27 @@
 
 .project-table .col-action {
     text-align: right;
+    white-space: nowrap;
+}
+
+.project-table .col-action .btn {
+    margin-left: var(--vc-space-xs);
+}
+
+.panel-header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--vc-space-sm);
+}
+
+.project-search {
+    padding: var(--vc-space-xs) var(--vc-space-sm);
+    border: 1px solid var(--vc-color-border);
+    border-radius: var(--vc-radius-sm);
+    background: var(--vc-color-bg-app);
+    color: var(--vc-color-text);
+    font-size: var(--vc-font-size-sm);
+    min-width: 160px;
 }
 
 .empty-state {

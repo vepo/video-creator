@@ -12,6 +12,8 @@ public class Clip {
     private double speed = 1.0;
     private String syncGroup;
     private int trackIndex;
+    private String transition;
+    private String effect;
 
     public String getHash() {
         return hash;
@@ -99,5 +101,21 @@ public class Clip {
 
     public void setTrackIndex(int trackIndex) {
         this.trackIndex = trackIndex;
+    }
+
+    public String getTransition() {
+        return transition;
+    }
+
+    public void setTransition(String transition) {
+        this.transition = transition;
+    }
+
+    public String getEffect() {
+        return effect;
+    }
+
+    public void setEffect(String effect) {
+        this.effect = effect;
     }
 }

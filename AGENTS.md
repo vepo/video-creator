@@ -56,7 +56,7 @@ Kdenlive-inspired dark theme (KDE Breeze Dark). See [`docs/DESIGN_SYSTEM.md`](do
 
 ## Architecture
 
-Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before structural changes.
+Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before structural changes. Kdenlive parity roadmap: [docs/KDENLIVE_FEATURES.md](docs/KDENLIVE_FEATURES.md).
 
 **Dependency direction (inward):**
 

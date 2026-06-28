@@ -151,15 +151,18 @@ public class VideoProcessingService {
         return outputPath;
     }
     
-    public String generatePreview(TimelineProject project, double startTime, double duration) throws IOException, InterruptedException {
-        // Generate preview filename
+    public String generatePreview(TimelineProject project) throws IOException, InterruptedException {
+        return generatePreview(project, 0, 0);
+    }
+
+    public String generatePreview(TimelineProject project, double startTimeSeconds, double durationSeconds)
+            throws IOException, InterruptedException {
         String previewFilename = "preview_%d.mp4".formatted(System.currentTimeMillis());
         String previewPath = fileStorageService.getOutputPath(previewFilename).toString();
-        
-        // Generate MLT XML for timeline project
+
         String xmlPath = xmlGenerator.generateTimelineMLTXml(project);
-        
-        // Build melt command for preview (shorter duration, lower quality)
+
+        VideoSettings settings = project.getVideoSettings();
         var command = new ArrayList<String>();
         command.add(appConfig.meltCommand());
         command.add(xmlPath);
@@ -167,20 +170,30 @@ public class VideoProcessingService {
         command.add("avformat:%s".formatted(Paths.get(previewPath).toAbsolutePath().toString()));
         command.add("vcodec=libx264");
         command.add("acodec=aac");
-        command.add("crf=28"); // Lower quality for faster preview
-        command.add("preset=ultrafast"); // Fastest encoding for preview
-        command.add("format=mp4"); // Ensure MP4 format for web compatibility
-        command.add("movflags=faststart"); // Optimize for web streaming
-        
-        // Add time range for preview
-        if (startTime > 0) {
-            command.add("in=" + (int)(startTime * 60));
+        command.add("crf=28");
+        command.add("preset=ultrafast");
+        command.add("format=mp4");
+        command.add("movflags=faststart");
+
+        if (settings != null) {
+            if (settings.getWidth() != null && settings.getHeight() != null) {
+                command.add("width=" + settings.getWidth());
+                command.add("height=" + settings.getHeight());
+            }
+            if (settings.getAudioBitrate() != null) {
+                command.add("ab=" + settings.getAudioBitrate() + "k");
+            }
         }
-        if (duration > 0) {
-            command.add("out=" + (int)((startTime + duration) * 60));
+
+        // Optional trim — frame numbers at 60 fps (matches MLT XML generation)
+        if (startTimeSeconds > 0) {
+            command.add("in=" + (int) (startTimeSeconds * 60));
         }
-        
-        // Log the command for debugging
+        if (durationSeconds > 0) {
+            double endSeconds = startTimeSeconds + durationSeconds;
+            command.add("out=" + (int) (endSeconds * 60));
+        }
+
         logger.info("Executing preview melt command: {}", command);
         
         // Execute melt command

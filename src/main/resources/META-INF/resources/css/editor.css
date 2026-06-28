@@ -53,6 +53,41 @@ body {
     border-radius: 3px;
     transition: background 0.2s;
     font-size: 14px;
+    position: relative;
+}
+
+.menu-item--dropdown.menu-item--open > .menu-dropdown {
+    display: block;
+}
+
+.menu-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 180px;
+    background: var(--vc-color-bg-panel);
+    border: 1px solid var(--vc-color-border);
+    border-radius: var(--vc-radius-sm);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    z-index: 100;
+    padding: var(--vc-space-xs) 0;
+}
+
+.menu-dropdown-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: var(--vc-space-sm) var(--vc-space-md);
+    background: none;
+    border: none;
+    color: var(--vc-color-text);
+    font-size: var(--vc-font-size-sm);
+    cursor: pointer;
+}
+
+.menu-dropdown-item:hover {
+    background: var(--vc-color-bg-hover);
 }
 
 .menu-item:hover {
@@ -69,11 +104,28 @@ body {
     background: transparent;
 }
 
-.editor-status {
-    padding: 6px 15px;
-    font-size: var(--vc-font-size-sm);
-    border-bottom: 1px solid var(--vc-color-border);
+.editor-status-bar {
+    flex-shrink: 0;
+    height: var(--vc-status-bar-height, 26px);
+    border-top: 1px solid var(--vc-color-border);
     background: var(--vc-color-bg-panel-alt);
+    display: flex;
+    align-items: center;
+    padding: 0 15px;
+    font-size: var(--vc-font-size-sm);
+}
+
+.editor-status {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: var(--vc-status-bar-height, 26px);
+}
+
+.editor-status--idle {
+    color: var(--vc-color-text-muted);
 }
 
 .editor-status--info {
@@ -275,17 +327,6 @@ body {
 
 .preview-container--active .preview-placeholder {
     display: none;
-}
-
-.preview-status {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    background: rgba(0, 0, 0, 0.7);
-    color: var(--vc-color-text);
-    padding: 4px 10px;
-    border-radius: 4px;
-    font-size: 12px;
 }
 
 .export-download {
@@ -523,6 +564,27 @@ body {
     margin-left: 10px;
 }
 
+.timeline-header .timeline-timecode {
+    display: flex;
+    align-items: baseline;
+    gap: var(--vc-space-sm);
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.timeline-timecode-label {
+    font-size: var(--vc-font-size-sm);
+    color: var(--vc-color-text-muted);
+}
+
+#playheadTimeLabel {
+    font-size: var(--vc-font-size-md);
+    font-weight: 600;
+    color: var(--vc-color-text);
+    min-width: 10ch;
+}
+
 /* Clips */
 .clip {
     position: absolute;
@@ -546,8 +608,80 @@ body {
 }
 
 .clip.selected {
-    border: 2px solid var(--vc-color-selection);
-    box-shadow: 0 0 0 1px rgba(243, 156, 18, 0.5);
+    border-color: var(--vc-color-accent);
+    box-shadow: 0 0 0 1px var(--vc-color-accent);
+}
+
+.clip-trim {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    cursor: ew-resize;
+    z-index: 2;
+}
+
+.clip-trim--left {
+    left: 0;
+    border-left: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.clip-trim--right {
+    right: 0;
+    border-right: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.clip-actions {
+    position: absolute;
+    top: 2px;
+    right: 10px;
+    display: none;
+    gap: 2px;
+    z-index: 3;
+}
+
+.clip:hover .clip-actions,
+.clip.selected .clip-actions {
+    display: flex;
+}
+
+.clip-btn {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    border-radius: 2px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.clip-btn:hover {
+    background: var(--vc-color-accent);
+}
+
+.tab-panel textarea {
+    width: 100%;
+    padding: var(--vc-space-sm);
+    border: 1px solid var(--vc-color-border);
+    border-radius: var(--vc-radius-sm);
+    background: var(--vc-color-bg-app);
+    color: var(--vc-color-text);
+    font-family: inherit;
+    resize: vertical;
+}
+
+.property-group textarea {
+    width: 100%;
+    padding: var(--vc-space-sm);
+    border: 1px solid var(--vc-color-border);
+    border-radius: var(--vc-radius-sm);
+    background: var(--vc-color-bg-app);
+    color: var(--vc-color-text);
+    font-family: inherit;
+    resize: vertical;
 }
 
 .clip-content {
@@ -608,6 +742,10 @@ body {
     transition: left 0.1s;
 }
 
+.playhead.playhead--following {
+    transition: none;
+}
+
 .playhead-line {
     height: 100%;
     background: var(--vc-color-playhead);
@@ -624,6 +762,8 @@ body {
     border-radius: 50%;
     border: 2px solid white;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    pointer-events: auto;
+    cursor: ew-resize;
 }
 
 /* Right Panel - Properties */

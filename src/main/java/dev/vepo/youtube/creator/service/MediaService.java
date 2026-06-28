@@ -302,8 +302,18 @@ public class MediaService {
         try {
             Files.deleteIfExists(Paths.get(filePath));
         } catch (IOException e) {
-            // Log warning but don't throw
-            System.err.println("Warning: Could not delete file: " + filePath);
+            logger.warn("Could not delete file: {}", filePath);
+        }
+    }
+
+    public void deleteFromGridFs(org.bson.types.ObjectId mediaId) {
+        if (mediaId == null) {
+            return;
+        }
+        try {
+            getBucket().delete(mediaId);
+        } catch (Exception e) {
+            logger.warn("Could not delete GridFS media {}", mediaId, e);
         }
     }
 

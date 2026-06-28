@@ -10,6 +10,81 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    var searchInput = document.getElementById('projectSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', function () {
+            var query = searchInput.value.trim().toLowerCase();
+            document.querySelectorAll('.project-table tbody tr').forEach(function (row) {
+                var name = (row.getAttribute('data-project-name') || '').toLowerCase();
+                row.style.display = !query || name.indexOf(query) !== -1 ? '' : 'none';
+            });
+        });
+    }
+
+    document.querySelectorAll('.btn-delete-project').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var projectId = btn.getAttribute('data-project-id');
+            var row = btn.closest('tr');
+            var name = row ? row.getAttribute('data-project-name') : 'this project';
+            if (!projectId || !confirm('Delete "' + name + '"? This cannot be undone.')) {
+                return;
+            }
+            btn.disabled = true;
+            fetch('/api/editor/' + projectId, { method: 'DELETE' })
+                .then(function (response) { return response.json(); })
+                .then(function () {
+                    if (row && row.parentElement) {
+                        row.parentElement.removeChild(row);
+                    }
+                    var tbody = document.querySelector('.project-table tbody');
+                    if (tbody && tbody.children.length === 0) {
+                        window.location.reload();
+                    }
+                })
+                .catch(function () {
+                    btn.disabled = false;
+                    alert('Failed to delete project.');
+                });
+        });
+    });
+
+    document.querySelectorAll('.btn-rename-project').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var projectId = btn.getAttribute('data-project-id');
+            var row = btn.closest('tr');
+            if (!projectId || !row) {
+                return;
+            }
+            var currentName = row.getAttribute('data-project-name') || '';
+            var newName = prompt('Rename project:', currentName);
+            if (newName === null || newName.trim() === '' || newName.trim() === currentName) {
+                return;
+            }
+            fetch('/api/projects/' + projectId, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newName.trim() })
+            })
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error('Rename failed');
+                    }
+                    return response.json();
+                })
+                .then(function (data) {
+                    var label = data.name || newName.trim();
+                    row.setAttribute('data-project-name', label);
+                    var link = row.querySelector('.project-link');
+                    if (link) {
+                        link.textContent = label;
+                    }
+                })
+                .catch(function () {
+                    alert('Failed to rename project.');
+                });
+        });
+    });
+
     fetch('/api/video/health')
         .then(function (response) { return response.json(); })
         .then(function (data) {

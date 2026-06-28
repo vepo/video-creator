@@ -50,4 +50,12 @@ public class Projects {
         collection().replaceOne(Filters.eq("_id", project.getId()), project);
         return project;
     }
+
+    public boolean delete(String id) {
+        if (id == null || id.isBlank() || !ObjectId.isValid(id)) {
+            return false;
+        }
+        var result = collection().deleteOne(Filters.eq("_id", new ObjectId(id)));
+        return result.getDeletedCount() > 0;
+    }
 }

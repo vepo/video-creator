@@ -46,6 +46,34 @@ const Project = {
                 clip.sourceOut = 0;
             }
         });
+        Project.repairAvSyncGroups();
+    },
+    repairAvSyncGroups: function() {
+        var clips = Project.allClips();
+        clips.forEach(function(clip) {
+            if (clip.syncGroup) {
+                return;
+            }
+            var media = Project.findMedia(clip.mediaHash);
+            if (!media || Project.resolveMediaType(media) !== 'VIDEO') {
+                return;
+            }
+            var partner = clips.find(function(other) {
+                if (other.hash === clip.hash || other.syncGroup) {
+                    return false;
+                }
+                if (other.mediaHash !== clip.mediaHash || other.start !== clip.start) {
+                    return false;
+                }
+                return (clip.type === 'VIDEO' && other.type === 'AUDIO') ||
+                       (clip.type === 'AUDIO' && other.type === 'VIDEO');
+            });
+            if (partner) {
+                var syncGroup = 'sync-' + clip.mediaHash + '-' + clip.start + '-repaired';
+                clip.syncGroup = syncGroup;
+                partner.syncGroup = syncGroup;
+            }
+        });
     },
     allTracks: function() {
         Project.ensureStructure();
@@ -191,11 +219,47 @@ const Project = {
 
         return currentProject.clips;
     },
+    contentDurationMs: function() {
+        var maxEnd = 0;
+        Project.allClips().forEach(function(clip) {
+            var media = Project.findMedia(clip.mediaHash);
+            var duration = clip.duration > 0 ? clip.duration : Project.clipDuration(media);
+            maxEnd = Math.max(maxEnd, clip.start + duration);
+        });
+        return maxEnd;
+    },
+    timelineDurationMs: function() {
+        if (!currentProject) {
+            return 0;
+        }
+        return Math.max(currentProject.duration || 0, Project.contentDurationMs());
+    },
     findClip: function(hash) {
         if (currentProject && currentProject.clips && currentProject.clips.length > 0) {
             return currentProject.clips.find(t => t.hash == hash);
         }
         return null;
+    },
+    findClipAtTime: function(timeMs) {
+        return Project.allClips().find(function(clip) {
+            return Project.clipContainsTime(clip, timeMs);
+        }) || null;
+    },
+    clipContainsTime: function(clip, timeMs) {
+        if (!clip) {
+            return false;
+        }
+        var duration = clip.duration > 0 ? clip.duration : Project.clipDuration(Project.findMedia(clip.mediaHash));
+        return timeMs > clip.start && timeMs < clip.start + duration;
+    },
+    clipEffectiveDuration: function(clip) {
+        if (!clip) {
+            return 0;
+        }
+        return clip.duration > 0 ? clip.duration : Project.clipDuration(Project.findMedia(clip.mediaHash));
+    },
+    canCutAtPlayhead: function() {
+        return Project.findClipAtTime(Playhead.positionMs()) !== null;
     },
     findSyncedClips: function(syncGroup) {
         if (!syncGroup || !currentProject || !currentProject.clips) {
@@ -204,6 +268,29 @@ const Project = {
         return currentProject.clips.filter(function(clip) {
             return clip.syncGroup === syncGroup;
         });
+    },
+    findAvPartners: function(clip) {
+        if (!clip) {
+            return [];
+        }
+        if (clip.syncGroup) {
+            return Project.findSyncedClips(clip.syncGroup);
+        }
+        var media = Project.findMedia(clip.mediaHash);
+        if (!media || Project.resolveMediaType(media) !== 'VIDEO') {
+            return [clip];
+        }
+        var partners = Project.allClips().filter(function(other) {
+            if (other.mediaHash !== clip.mediaHash || other.start !== clip.start) {
+                return false;
+            }
+            if (other.hash === clip.hash) {
+                return true;
+            }
+            return (clip.type === 'VIDEO' && other.type === 'AUDIO') ||
+                   (clip.type === 'AUDIO' && other.type === 'VIDEO');
+        });
+        return partners.length ? partners : [clip];
     },
     clipDuration: function(media) {
         if (media && typeof media.duration === 'number' && media.duration > 0) {
@@ -302,7 +389,7 @@ const Project = {
             console.error('Clip not found for move', clipHash);
             return;
         }
-        var clips = clip.syncGroup ? Project.findSyncedClips(clip.syncGroup) : [clip];
+        var clips = Project.findAvPartners(clip);
         var media = Project.findMedia(clip.mediaHash);
         var duration = clip.duration > 0 ? clip.duration : Project.clipDuration(media);
         var clampedStart = Project.clampClipStart(startMs, duration);
@@ -335,7 +422,7 @@ const Project = {
         if (!clip) {
             return;
         }
-        var toRemove = clip.syncGroup ? Project.findSyncedClips(clip.syncGroup) : [clip];
+        var toRemove = Project.findAvPartners(clip);
         var removeHashes = toRemove.map(function(c) { return c.hash; });
         currentProject.clips = currentProject.clips.filter(function(c) {
             return removeHashes.indexOf(c.hash) === -1;
@@ -351,20 +438,20 @@ const Project = {
         ProjectSave.schedule();
         UI.updateTimelineActions();
     },
-    splitClip: function(clipHash, splitAtMs) {
+    splitClip: function(clipHash, splitAtMs, options) {
+        options = options || {};
         var clip = Project.findClip(clipHash);
-        if (!clip || splitAtMs <= 0 || splitAtMs >= clip.duration) {
-            return Promise.resolve();
+        if (!clip || splitAtMs <= 0 || splitAtMs >= Project.clipEffectiveDuration(clip)) {
+            return Promise.resolve(null);
         }
         var media = Project.findMedia(clip.mediaHash);
         var sourceIn = clip.sourceIn || 0;
         var rightDuration = clip.duration - splitAtMs;
         clip.duration = splitAtMs;
-        if (clip.sourceOut > 0) {
-            clip.sourceOut = sourceIn + splitAtMs;
-        }
+        clip.sourceOut = sourceIn + splitAtMs;
+        var rightSyncGroup = options.rightSyncGroup !== undefined ? options.rightSyncGroup : null;
         return Hash.generate(clip.hash + '-split-' + Date.now() + '-' + Math.random()).then(function(newHash) {
-            currentProject.clips.push({
+            var rightClip = {
                 name: clip.name,
                 hash: newHash,
                 mediaHash: clip.mediaHash,
@@ -372,37 +459,172 @@ const Project = {
                 type: clip.type,
                 start: clip.start + splitAtMs,
                 speed: clip.speed || 1,
-                syncGroup: null,
+                syncGroup: rightSyncGroup,
                 trackIndex: clip.trackIndex,
                 sourceIn: sourceIn + splitAtMs,
                 sourceOut: media && media.duration > 0 ? media.duration : 0
-            });
+            };
+            currentProject.clips.push(rightClip);
+            return rightClip;
+        });
+    },
+    cutAtPlayhead: function() {
+        var playheadMs = Playhead.positionMs();
+        var clip = Project.findClipAtTime(playheadMs);
+        var selectedHash = UI.getSelectedClipHash();
+        if (selectedHash) {
+            var selected = Project.findClip(selectedHash);
+            if (selected && Project.clipContainsTime(selected, playheadMs)) {
+                clip = selected;
+            }
+        }
+        if (!clip) {
+            UI.notify('Move the playhead inside a clip to cut.', 'error');
+            return;
+        }
+        var group = Project.findAvPartners(clip);
+        var newSyncGroup = group.length > 1
+            ? 'sync-cut-' + playheadMs + '-' + Date.now()
+            : null;
+        var cuts = group.map(function(c) {
+            return { hash: c.hash, cutPoint: playheadMs - c.start };
+        }).filter(function(entry) {
+            var c = Project.findClip(entry.hash);
+            if (!c) {
+                return false;
+            }
+            return entry.cutPoint > 0 && entry.cutPoint < Project.clipEffectiveDuration(c);
+        });
+        if (cuts.length === 0) {
+            UI.notify('Move the playhead inside the clip to cut.', 'error');
+            return;
+        }
+        Promise.all(cuts.map(function(entry) {
+            return Project.splitClip(entry.hash, entry.cutPoint, { rightSyncGroup: newSyncGroup });
+        })).then(function() {
+            if (newSyncGroup) {
+                Project.repairAvSyncGroups();
+            }
+            UI.reconciliateClips();
+            ProjectSave.schedule();
+            UI.updateTimelineActions();
+            var label = UI.mediaDuration(playheadMs);
+            UI.notify('Cut at ' + label + (cuts.length > 1 ? ' (video + audio).' : '.'), 'success');
         });
     },
     cutSelectedClipAtPlayhead: function() {
-        var hash = UI.getSelectedClipHash();
-        if (!hash) {
-            UI.notify('Select a clip to cut.', 'error');
-            return;
+        Project.cutAtPlayhead();
+    },
+    trimClipLeft: function(clipHash, newStartMs) {
+        var clip = Project.findClip(clipHash);
+        if (!clip) {
+            return false;
         }
-        var clip = Project.findClip(hash);
-        var playheadMs = Playhead.positionMs();
+        var delta = Math.round(newStartMs - clip.start);
+        if (delta <= 0 || delta >= Project.clipEffectiveDuration(clip) - 100) {
+            return false;
+        }
+        var partners = Project.findAvPartners(clip);
+        partners.forEach(function(c) {
+            c.sourceIn = (c.sourceIn || 0) + delta;
+            c.duration = Project.clipEffectiveDuration(c) - delta;
+            c.start = c.start + delta;
+            c.sourceOut = c.sourceIn + c.duration;
+        });
+        return true;
+    },
+    trimClipRight: function(clipHash, newEndMs) {
+        var clip = Project.findClip(clipHash);
+        if (!clip) {
+            return false;
+        }
+        var newDuration = Math.round(newEndMs - clip.start);
+        if (newDuration < 100 || newDuration >= Project.clipEffectiveDuration(clip)) {
+            return false;
+        }
+        var partners = Project.findAvPartners(clip);
+        partners.forEach(function(c) {
+            c.duration = newDuration;
+            c.sourceOut = (c.sourceIn || 0) + newDuration;
+        });
+        return true;
+    },
+    applyClipTransition: function(clipHash, transition) {
+        var clip = Project.findClip(clipHash);
         if (!clip) {
             return;
         }
-        var cutPoint = playheadMs - clip.start;
-        if (cutPoint <= 0 || cutPoint >= clip.duration) {
-            UI.notify('Move the playhead inside the selected clip to cut.', 'error');
+        clip.transition = transition || null;
+        ProjectSave.schedule();
+    },
+    applyClipEffect: function(clipHash, effect) {
+        var clip = Project.findClip(clipHash);
+        if (!clip) {
             return;
         }
-        var group = clip.syncGroup ? Project.findSyncedClips(clip.syncGroup) : [clip];
-        Promise.all(group.map(function(c) {
-            return Project.splitClip(c.hash, cutPoint);
-        })).then(function() {
-            UI.reconciliateClips();
-            ProjectSave.schedule();
-            UI.notify('Clip cut at playhead.', 'success');
-        });
+        clip.effect = effect || null;
+        ProjectSave.schedule();
+    },
+    updateClipProperty: function(clipHash, field, value) {
+        var clip = Project.findClip(clipHash);
+        if (!clip) {
+            return;
+        }
+        var partners = Project.findAvPartners(clip);
+        if (field === 'name') {
+            partners.forEach(function(c) { c.name = value; });
+        } else if (field === 'start') {
+            var startMs = Math.round(parseFloat(value) * 1000);
+            var media = Project.findMedia(clip.mediaHash);
+            var duration = Project.clipEffectiveDuration(clip);
+            var clamped = Project.clampClipStart(startMs, duration);
+            var delta = clamped - clip.start;
+            partners.forEach(function(c) { c.start = c.start + delta; });
+        } else if (field === 'speed') {
+            var speed = Math.max(0.1, Math.min(3, parseFloat(value) || 1));
+            partners.forEach(function(c) { c.speed = speed; });
+        }
+        UI.reconciliateClips();
+        ProjectSave.schedule();
+    },
+    removeMedia: function(mediaHash) {
+        return fetch('/api/editor/' + currentProject.id + '/media/' + mediaHash, { method: 'DELETE' })
+            .then(function(response) { return response.json().then(function(data) { return { ok: response.ok, data: data }; }); })
+            .then(function(result) {
+                if (!result.ok) {
+                    throw new Error(result.data.error || 'Failed to remove media');
+                }
+                currentProject.medias = currentProject.medias.filter(function(m) { return m.hash !== mediaHash; });
+                UI.reconciliateMedias();
+                document.querySelectorAll('[item-hash="' + mediaHash + '"]').forEach(function(elm) {
+                    if (elm.parentElement) {
+                        elm.parentElement.removeChild(elm);
+                    }
+                });
+                UI.clearItemProperties();
+                ProjectSave.schedule();
+            });
+    },
+    renameMedia: function(mediaHash, name) {
+        return fetch('/api/editor/' + currentProject.id + '/media/' + mediaHash, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name })
+        })
+            .then(function(response) {
+                if (!response.ok) {
+                    return response.json().then(function(data) { throw new Error(data.error || 'Rename failed'); });
+                }
+                return response.json();
+            })
+            .then(function(updated) {
+                var media = Project.findMedia(mediaHash);
+                if (media) {
+                    media.name = updated.name || name;
+                }
+                UI.reconciliateMedias();
+                ProjectSave.schedule();
+            });
     }
 };
 
@@ -562,11 +784,11 @@ const DragNDrop = {
         }
         const containerRect = target.getBoundingClientRect();
         const totalWidth = target.offsetWidth || containerRect.width;
+        const metrics = TimelineZoom.getMetrics();
         const visibleWidth = containerRect.width;
-        const scrollOffset = TimelineZoom.scrollPosition * Math.max(0, totalWidth - visibleWidth);
         const pointerX = typeof e.clientX === 'number' ? e.clientX : e.x;
-        const clientX = pointerX - containerRect.left + scrollOffset;
-        return Math.max(0, Math.min(100, (clientX / totalWidth) * 100));
+        const clientX = pointerX - containerRect.left + metrics.scrollOffset;
+        return Math.max(0, Math.min(100, (clientX / metrics.totalWidth) * 100));
     },
     clipStartFromPosition: function(positionPercent) {
         var startMs = Math.round(currentProject.duration * positionPercent / 100);
@@ -606,7 +828,6 @@ const UI = {
         }
         bar.textContent = message;
         bar.className = 'editor-status editor-status--' + type;
-        bar.classList.remove('visually-hidden');
         if (this.notifyTimer) {
             clearTimeout(this.notifyTimer);
             this.notifyTimer = null;
@@ -614,9 +835,17 @@ const UI = {
         if (type !== 'error') {
             var self = this;
             this.notifyTimer = setTimeout(function() {
-                bar.classList.add('visually-hidden');
+                self.clearStatus();
             }, 6000);
         }
+    },
+    clearStatus: function() {
+        var bar = document.getElementById('editorStatus');
+        if (!bar) {
+            return;
+        }
+        bar.textContent = '';
+        bar.className = 'editor-status editor-status--idle';
     },
     setButtonBusy: function(btn, busy) {
         if (!btn) {
@@ -641,8 +870,9 @@ const UI = {
         var hash = UI.getSelectedClipHash();
         var cutBtn = document.getElementById('cutClipBtn');
         var deleteBtn = document.getElementById('deleteClipBtn');
+        var canCut = Project.canCutAtPlayhead();
         if (cutBtn) {
-            cutBtn.disabled = !hash;
+            cutBtn.disabled = !canCut;
         }
         if (deleteBtn) {
             deleteBtn.disabled = !hash;
@@ -738,40 +968,113 @@ const UI = {
             if (media) {
                 itemProperties.insertAdjacentHTML('afterbegin', `<h3>Media</h3>
                                                                  <div class="property-group">
-                                                                     <label>Media Name</label>
-                                                                     <input type="text" disabled value="${media.name}">
+                                                                     <label for="prop-media-name">Media Name</label>
+                                                                     <input id="prop-media-name" type="text" value="${UI.escapeHtml(media.name)}">
                                                                  </div>
                                                                  <div class="property-group">
                                                                      <label>Duration</label>
                                                                      <input type="text" disabled value="${ UI.mediaDuration(media.duration) }">
+                                                                 </div>
+                                                                 <div class="property-group">
+                                                                     <button type="button" class="btn btn-secondary btn-sm" id="prop-media-remove">Remove from project</button>
                                                                  </div>`);
+                var nameInput = document.getElementById('prop-media-name');
+                if (nameInput) {
+                    nameInput.addEventListener('change', function() {
+                        var newName = nameInput.value.trim();
+                        if (newName && newName !== media.name) {
+                            Project.renameMedia(hash, newName)
+                                .then(function() { UI.notify('Media renamed.', 'success'); })
+                                .catch(function(err) { UI.notify(err.message, 'error'); nameInput.value = media.name; });
+                        }
+                    });
+                }
+                var removeBtn = document.getElementById('prop-media-remove');
+                if (removeBtn) {
+                    removeBtn.addEventListener('click', function() {
+                        if (!confirm('Remove "' + media.name + '" from the project?')) {
+                            return;
+                        }
+                        Project.removeMedia(hash)
+                            .then(function() { UI.notify('Media removed.', 'info'); })
+                            .catch(function(err) { UI.notify(err.message, 'error'); });
+                    });
+                }
             } else {
                 console.error("Media cannot be found!", hash);
             }
         } else if (type == 'CLIP') {
             let clip = Project.findClip(hash);
             if (clip) {
+                var displayName = clip.name || (Project.findMedia(clip.mediaHash) && Project.findMedia(clip.mediaHash).name) || '';
                 itemProperties.insertAdjacentHTML('afterbegin', `<h3>Clip</h3>
                                                                  <div class="property-group">
-                                                                     <label>Clip Name</label>
-                                                                     <input type="text" value="${clip.name}">
+                                                                     <label for="prop-clip-name">Clip Name</label>
+                                                                     <input id="prop-clip-name" type="text" value="${UI.escapeHtml(displayName)}">
                                                                  </div>
                                                                  <div class="property-group">
-                                                                     <label>Start Time <i>(s)</i></label>
-                                                                     <input type="number" value="${clip.start / 1000}" step="0.001">
+                                                                     <label for="prop-clip-start">Start Time <i>(s)</i></label>
+                                                                     <input id="prop-clip-start" type="number" value="${(clip.start / 1000).toFixed(3)}" step="0.001" min="0">
                                                                  </div>
                                                                  <div class="property-group">
-                                                                     <label>Duration <i>(s)</i></label>
-                                                                     <input type="text" value="${UI.mediaDuration(clip.duration)}" >
+                                                                     <label>Duration</label>
+                                                                     <input type="text" disabled value="${UI.mediaDuration(clip.duration)}" >
                                                                  </div>
                                                                  <div class="property-group">
-                                                                     <label>Speed</label>
-                                                                     <input type="number" value="${clip.speed}" step="0.01" min="0.1" max="3">
+                                                                     <label for="prop-clip-speed">Speed</label>
+                                                                     <input id="prop-clip-speed" type="number" value="${clip.speed || 1}" step="0.01" min="0.1" max="3">
                                                                  </div>`);
+                UI.bindClipPropertyInputs(hash);
             } else {
                 console.error("Clip cannot be found!", hash);
             }
 
+        }
+    },
+    escapeHtml: function(text) {
+        if (!text) {
+            return '';
+        }
+        return String(text).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    },
+    bindClipPropertyInputs: function(clipHash) {
+        var nameInput = document.getElementById('prop-clip-name');
+        var startInput = document.getElementById('prop-clip-start');
+        var speedInput = document.getElementById('prop-clip-speed');
+        if (nameInput) {
+            nameInput.addEventListener('change', function() {
+                Project.updateClipProperty(clipHash, 'name', nameInput.value.trim());
+            });
+        }
+        if (startInput) {
+            startInput.addEventListener('change', function() {
+                Project.updateClipProperty(clipHash, 'start', startInput.value);
+                UI.setupItemProperties('CLIP', clipHash);
+            });
+        }
+        if (speedInput) {
+            speedInput.addEventListener('change', function() {
+                Project.updateClipProperty(clipHash, 'speed', speedInput.value);
+            });
+        }
+    },
+    switchTab: function(tabName) {
+        var tabs = document.querySelectorAll('.properties-tabs .tab');
+        tabs.forEach(function(t) {
+            t.classList.toggle('active', t.textContent.trim() === tabName);
+        });
+        var propsPanel = document.getElementById('tabPanelProperties');
+        var transPanel = document.getElementById('tabPanelTransitions');
+        var effectsPanel = document.getElementById('tabPanelEffects');
+        if (propsPanel) {
+            propsPanel.classList.toggle('visually-hidden', tabName !== 'Properties');
+            propsPanel.classList.toggle('tab-panel--active', tabName === 'Properties');
+        }
+        if (transPanel) {
+            transPanel.classList.toggle('visually-hidden', tabName !== 'Transitions');
+        }
+        if (effectsPanel) {
+            effectsPanel.classList.toggle('visually-hidden', tabName !== 'Effects');
         }
     },
     reconciliateMedias: function() {
@@ -783,11 +1086,10 @@ const UI = {
         Project.allMedias().forEach(media => {
             var mediaItem = mediaList.querySelector(`[item-hash="${media.hash}"]`);
             if (!mediaItem) {
-                // onclick="selectElement('MEDIA', '${media.hash}')" 
                 mediaList.insertAdjacentHTML('beforeend', `<div draggable="true" class="file-item" item-hash="${media.hash}">
                                                             <div class="file-icon">${ UI.mediaIcon(media) }</div>
                                                             <div class="file-info">
-                                                                <div class="file-name" title="${ media.name }">${ media.name }</div>
+                                                                <div class="file-name" title="${ UI.escapeHtml(media.name) }">${ UI.escapeHtml(media.name) }</div>
                                                                 <div class="file-duration">${ UI.mediaDuration(media.duration) }</div>
                                                             </div>
                                                         </div>`);
@@ -796,6 +1098,12 @@ const UI = {
                     console.error("Element not added!!!");
                 }
                 UI.setupElement(mediaElm, 'MEDIA');
+            } else {
+                var nameEl = mediaItem.querySelector('.file-name');
+                if (nameEl) {
+                    nameEl.textContent = media.name;
+                    nameEl.title = media.name;
+                }
             }
         })
     },
@@ -904,16 +1212,54 @@ const UI = {
             var layout = UI.clipLayoutPercent(clip, media);
             var syncAttr = clip.syncGroup ? ' data-sync-group="' + clip.syncGroup + '"' : '';
             var clipClass = clip.type === 'AUDIO' ? 'clip clip--audio' : 'clip';
+            var displayName = clip.name || media.name;
+            var safeName = UI.escapeHtml(displayName);
             trackLine.insertAdjacentHTML('beforeend',
                 '<div draggable="true" class="' + clipClass + '" item-hash="' + clip.hash + '"' + syncAttr +
                 ' style="left: ' + layout.left + '%; width: ' + layout.width + '%;">' +
-                '<div class="clip-content"><span class="clip-name" title="' + media.name + '">' + media.name + '</span></div></div>');
+                '<div class="clip-trim clip-trim--left" data-trim="left" title="Trim start"></div>' +
+                '<div class="clip-content"><span class="clip-name" title="' + safeName + '">' + safeName + '</span></div>' +
+                '<div class="clip-actions">' +
+                '<button type="button" class="clip-btn clip-btn--edit" title="Edit properties" aria-label="Edit clip">&hellip;</button>' +
+                '<button type="button" class="clip-btn clip-btn--delete" title="Delete clip" aria-label="Delete clip">&times;</button>' +
+                '</div>' +
+                '<div class="clip-trim clip-trim--right" data-trim="right" title="Trim end"></div></div>');
             var clipElm = document.querySelector('[item-hash="' + clip.hash + '"]');
             if (clipElm) {
                 UI.setupElement(clipElm, 'CLIP');
+                UI.setupClipControls(clipElm, clip.hash);
             }
         });
         TimelineZoom.updateClipPositions();
+    },
+    setupClipControls: function(clipElm, clipHash) {
+        var editBtn = clipElm.querySelector('.clip-btn--edit');
+        var deleteBtn = clipElm.querySelector('.clip-btn--delete');
+        if (editBtn) {
+            editBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                UI.selectElement('CLIP', clipHash);
+                UI.switchTab('Properties');
+            });
+        }
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                Project.requestDeleteClip(clipHash);
+            });
+        }
+        clipElm.querySelectorAll('.clip-trim, .clip-btn').forEach(function(el) {
+            el.addEventListener('dragstart', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+        clipElm.querySelectorAll('.clip-trim').forEach(function(handle) {
+            handle.addEventListener('mousedown', function(e) {
+                e.stopPropagation();
+                ClipTrim.start(e, clipHash, handle.getAttribute('data-trim'));
+            });
+        });
     },
     setClipDraggingState: function(clipHash, dragging) {
         document.querySelectorAll('.clip[item-hash].clip--dragging').forEach(function(elm) {
@@ -926,9 +1272,7 @@ const UI = {
         if (!clip) {
             return;
         }
-        var hashes = clip.syncGroup
-            ? Project.findSyncedClips(clip.syncGroup).map(function(c) { return c.hash; })
-            : [clipHash];
+        var hashes = Project.findAvPartners(clip).map(function(c) { return c.hash; });
         hashes.forEach(function(hash) {
             var elm = UI.getElementByHash(hash);
             if (elm) {
@@ -965,7 +1309,7 @@ const UI = {
         if (!clip) {
             return;
         }
-        var clips = clip.syncGroup ? Project.findSyncedClips(clip.syncGroup) : [clip];
+        var clips = Project.findAvPartners(clip);
         clips.forEach(function(c) {
             UI.updateShadowElementForClip(startMs, c, c.type === 'AUDIO' ? 'clip--audio' : '');
         });
@@ -1091,11 +1435,22 @@ const UI = {
                 ProjectSave.schedule();
             }
         }
+        var txtDescription = document.getElementById('txt-project-description');
+        if (txtDescription) {
+            txtDescription.value = currentProject.description || '';
+            txtDescription.onchange = function() {
+                currentProject.description = txtDescription.value;
+                ProjectSave.schedule();
+            };
+        }
         let durationProject = document.getElementById('dur-project');
         if (durationProject) {
-            UI.setupDurationControl(durationProject, 
-                                    value => currentProject.duration = value, 
-                                    () => currentProject.duration);
+            UI.setupDurationControl(durationProject,
+                                    function(value) {
+                                        currentProject.duration = value;
+                                        TimelineZoom.updateTimelineDisplay();
+                                    },
+                                    function() { return currentProject.duration; });
         }
     }, 
     setupDurationControl: function(root, changeListener, valueSupplier) {
@@ -1209,57 +1564,57 @@ const TimelineZoom = {
     setupScrollHandlers: function() {
         const scrollHandle = document.querySelector('.timeline-scroll .scroll-handle');
         const timelineScroll = document.querySelector('.timeline-scroll');
-        const timelineRuler = document.querySelector('.timeline-ruler');
-        
-        if (!scrollHandle || !timelineScroll) return;
-        
-        let isDragging = false;
-        let startMovementX = 0;
-        let startComponentX = 0;
-        // let startScrollLeft = 0;
-        
-        // Mouse drag handling
-        scrollHandle.addEventListener('mousedown', (e) => {
+        if (!scrollHandle || !timelineScroll) {
+            return;
+        }
+
+        var self = this;
+        var isDragging = false;
+        var startMovementX = 0;
+        var startScrollPosition = 0;
+
+        scrollHandle.addEventListener('mousedown', function(e) {
             isDragging = true;
             startMovementX = e.clientX;
-            startComponentX = scrollHandle.offsetLeft;
-            // console.log(startMovementX);
-            // startScrollLeft = this.scrollPosition;
+            startScrollPosition = self.scrollPosition;
             scrollHandle.style.cursor = 'grabbing';
             e.preventDefault();
         });
-        
-        document.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
-    
-            const startHandlePosition = scrollHandle.offsetLeft;
-            const deltaX = e.clientX - startMovementX;
-            const scrollWidth = timelineScroll.clientWidth;
-            const handleWidth = scrollHandle.clientWidth;
-            const maxScroll = scrollWidth - handleWidth;
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) {
+                return;
+            }
+            var scrollWidth = timelineScroll.clientWidth;
+            var handleWidth = scrollHandle.offsetWidth;
+            var maxScroll = scrollWidth - handleWidth;
             if (maxScroll > 0) {
-                const newHandlePosition = Math.max(0, Math.min(maxScroll, startHandlePosition + deltaX));
-                scrollHandle.style.left = `${newHandlePosition}px`;
-                timelineRuler.scrollLeft = deltaX + timelineRuler.scrollLeft ;
+                var deltaRatio = (e.clientX - startMovementX) / maxScroll;
+                self.setScrollPosition(startScrollPosition + deltaRatio);
             }
         });
-        
-        document.addEventListener('mouseup', () => {
+
+        document.addEventListener('mouseup', function() {
+            if (!isDragging) {
+                return;
+            }
             isDragging = false;
             scrollHandle.style.cursor = 'pointer';
         });
-        
-        // Click to scroll
-        // timelineScroll.addEventListener('click', (e) => {
-        //     if (e.target === timelineScroll) {
-        //         const rect = timelineScroll.getBoundingClientRect();
-        //         const clickX = e.clientX - rect.left;
-        //         const handleWidth = scrollHandle.clientWidth;
-                
-        //         this.scrollPosition = Math.max(0, Math.min(1, (clickX - handleWidth / 2) / (rect.width - handleWidth)));
-        //         // this.updateTimelineDisplay();
-        //     }
-        // });
+
+        timelineScroll.addEventListener('click', function(e) {
+            if (e.target !== timelineScroll) {
+                return;
+            }
+            var rect = timelineScroll.getBoundingClientRect();
+            var handleWidth = scrollHandle.offsetWidth;
+            var maxScroll = rect.width - handleWidth;
+            if (maxScroll <= 0) {
+                return;
+            }
+            var clickX = e.clientX - rect.left - handleWidth / 2;
+            self.setScrollPosition(clickX / maxScroll);
+        });
     },
     
     setupZoomControls: function() {
@@ -1313,11 +1668,54 @@ const TimelineZoom = {
         this.updateTimelineDisplay();
     },
     
+    getMetrics: function() {
+        var ruler = document.querySelector('.timeline-ruler');
+        var visibleWidth = ruler ? ruler.clientWidth : 0;
+        var totalWidth = visibleWidth * this.zoomLevel;
+        var maxScroll = Math.max(0, totalWidth - visibleWidth);
+        var scrollOffset = this.scrollPosition * maxScroll;
+        return {
+            visibleWidth: visibleWidth,
+            totalWidth: totalWidth,
+            maxScroll: maxScroll,
+            scrollOffset: scrollOffset
+        };
+    },
+
+    setScrollPosition: function(ratio) {
+        this.scrollPosition = Math.max(0, Math.min(1, ratio));
+        this.updateTimelineDisplay();
+    },
+
+    ensureTimeVisible: function(timeMs) {
+        var duration = Project.timelineDurationMs();
+        if (!duration) {
+            return;
+        }
+        var metrics = this.getMetrics();
+        if (metrics.totalWidth <= metrics.visibleWidth) {
+            return;
+        }
+        var absoluteX = (timeMs / duration) * metrics.totalWidth;
+        var margin = metrics.visibleWidth * 0.08;
+        var visibleStart = metrics.scrollOffset;
+        var visibleEnd = visibleStart + metrics.visibleWidth;
+        if (absoluteX < visibleStart + margin) {
+            var newOffset = Math.max(0, absoluteX - margin);
+            this.setScrollPosition(metrics.maxScroll > 0 ? newOffset / metrics.maxScroll : 0);
+        } else if (absoluteX > visibleEnd - margin) {
+            var trailingOffset = Math.min(metrics.maxScroll, absoluteX - metrics.visibleWidth + margin);
+            this.setScrollPosition(metrics.maxScroll > 0 ? trailingOffset / metrics.maxScroll : 0);
+        }
+    },
+
     updateTimelineDisplay: function() {
         this.updateRulerMarks();
         this.updateTrackLines();
         this.updateScrollHandle();
         this.updateClipPositions();
+        Playhead.updateVisual();
+        UI.updateTimelineActions();
     },
     
     formatRulerTime: function(timeMs) {
@@ -1341,6 +1739,8 @@ const TimelineZoom = {
         const markWidthPx = 60;
         rulerMarks.style.width = `${100 * this.zoomLevel}%`;
         const totalWidth = rulerMarks.offsetWidth || document.querySelector('.timeline-ruler').clientWidth;
+        const metrics = this.getMetrics();
+        rulerMarks.style.transform = `translateX(-${metrics.scrollOffset}px)`;
         const totalMarks = Math.max(1, Math.floor(totalWidth / markWidthPx));
         const timeIntervalMs = currentProject.duration / totalMarks;
 
@@ -1355,9 +1755,8 @@ const TimelineZoom = {
     
     updateTrackLines: function() {
         const trackLines = document.querySelectorAll('.track-line');
-        const visibleWidth = document.querySelector('.timeline-ruler').clientWidth;
-        const totalWidth = visibleWidth * this.zoomLevel;
-        
+        const metrics = this.getMetrics();
+
         trackLines.forEach(trackLine => {
             trackLine.style.background = `repeating-linear-gradient(
                 90deg,
@@ -1365,8 +1764,8 @@ const TimelineZoom = {
                 transparent ${this.getGridSize() - 1}px,
                 rgba(52, 73, 94, 0.3) ${this.getGridSize()}px
             )`;
-            trackLine.style.width = `${totalWidth}px`;
-            trackLine.style.transform = `translateX(-${this.scrollPosition * (totalWidth - visibleWidth)}px)`;
+            trackLine.style.width = `${metrics.totalWidth}px`;
+            trackLine.style.transform = `translateX(-${metrics.scrollOffset}px)`;
         });
     },
     
@@ -1397,23 +1796,22 @@ const TimelineZoom = {
     
     updateClipPositions: function() {
         const clips = document.querySelectorAll('.clip');
-        const visibleWidth = document.querySelector('.timeline-ruler').clientWidth;
-        const totalWidth = visibleWidth * this.zoomLevel;
-        
+        const metrics = this.getMetrics();
+
         clips.forEach(clip => {
             const clipHash = clip.getAttribute('item-hash');
             const clipData = Project.findClip(clipHash);
-            
+
             if (clipData) {
                 const media = Project.findMedia(clipData.mediaHash);
                 const duration = clipData.duration > 0 ? clipData.duration : Project.clipDuration(media);
                 const startPercent = (clipData.start * 100) / currentProject.duration;
                 const durationPercent = (duration * 100) / currentProject.duration;
-                
-                const startPixels = (startPercent / 100) * totalWidth;
-                const durationPixels = (durationPercent / 100) * totalWidth;
-                
-                clip.style.left = `${startPixels - (this.scrollPosition * (totalWidth - visibleWidth))}px`;
+
+                const startPixels = (startPercent / 100) * metrics.totalWidth;
+                const durationPixels = (durationPercent / 100) * metrics.totalWidth;
+
+                clip.style.left = `${startPixels - metrics.scrollOffset}px`;
                 clip.style.width = `${durationPixels}px`;
             }
         });
@@ -1505,6 +1903,8 @@ const MediaLibrary = {
 
 const Playhead = {
     positionMs_: 0,
+    followingPlayback: false,
+    dragging: false,
     positionMs: function() {
         return this.positionMs_;
     },
@@ -1512,35 +1912,121 @@ const Playhead = {
         var ruler = document.querySelector('.timeline-ruler');
         if (ruler) {
             ruler.addEventListener('click', function(e) {
-                var rect = ruler.getBoundingClientRect();
-                var percent = (e.clientX - rect.left) / rect.width;
-                Playhead.setPositionPercent(Math.max(0, Math.min(1, percent)));
+                Playhead.setPositionFromClientX(e.clientX);
             });
         }
+
+        var playhead = document.getElementById('playhead');
+        if (playhead) {
+            var handle = playhead.querySelector('.playhead-handle');
+            var startDrag = function(e) {
+                Playhead.dragging = true;
+                Playhead.setFollowingPlayback(false);
+                Playhead.setPositionFromClientX(e.clientX);
+                e.preventDefault();
+            };
+            if (handle) {
+                handle.addEventListener('mousedown', startDrag);
+            }
+            playhead.addEventListener('mousedown', startDrag);
+        }
+
+        document.addEventListener('mousemove', function(e) {
+            if (!Playhead.dragging) {
+                return;
+            }
+            Playhead.setPositionFromClientX(e.clientX);
+        });
+
+        document.addEventListener('mouseup', function() {
+            Playhead.dragging = false;
+        });
+
+        var tracksContainer = document.getElementById('tracks-container');
+        if (tracksContainer) {
+            tracksContainer.addEventListener('click', function(e) {
+                if (e.target.closest('.clip') || e.target.closest('.track-btn') ||
+                    e.target.closest('.track-header')) {
+                    return;
+                }
+                if (e.target.closest('.track-line') || e.target.closest('.track-area')) {
+                    Playhead.setPositionFromClientX(e.clientX);
+                }
+            });
+        }
+
         this.updateVisual();
+    },
+    setPositionFromClientX: function(clientX) {
+        var metrics = TimelineZoom.getMetrics();
+        var ruler = document.querySelector('.timeline-ruler');
+        if (!ruler || metrics.visibleWidth <= 0 || metrics.totalWidth <= 0) {
+            return;
+        }
+        var rect = ruler.getBoundingClientRect();
+        var clickX = clientX - rect.left;
+        var absoluteX = metrics.scrollOffset + clickX;
+        var percent = absoluteX / metrics.totalWidth;
+        this.setPositionPercent(Math.max(0, Math.min(1, percent)));
     },
     setPositionPercent: function(percent) {
-        this.positionMs_ = Math.round(currentProject.duration * percent);
-        this.updateVisual();
+        this.setPositionMs(Math.round(Project.timelineDurationMs() * percent), { follow: true });
     },
-    setPositionMs: function(ms) {
-        if (!currentProject || !currentProject.duration) {
+    setPositionMs: function(ms, options) {
+        options = options || {};
+        var duration = Project.timelineDurationMs();
+        if (!duration) {
             return;
         }
-        this.positionMs_ = Math.max(0, Math.min(Math.round(ms), currentProject.duration));
-        this.updateVisual();
+        this.positionMs_ = Math.max(0, Math.min(Math.round(ms), duration));
+        this.updateVisual(options);
+        if (!options.fromVideo) {
+            Preview.syncFromPlayhead(this.positionMs_);
+        }
     },
-    updateVisual: function() {
+    setFollowingPlayback: function(active) {
+        this.followingPlayback = !!active;
         var playhead = document.getElementById('playhead');
-        if (!playhead || !currentProject.duration) {
+        if (playhead) {
+            playhead.classList.toggle('playhead--following', this.followingPlayback);
+        }
+    },
+    updateVisual: function(options) {
+        options = options || {};
+        var playhead = document.getElementById('playhead');
+        if (!playhead || !Project.timelineDurationMs()) {
             return;
         }
-        var percent = (this.positionMs_ * 100) / currentProject.duration;
-        playhead.style.left = percent + '%';
-        playhead.setAttribute('aria-valuenow', this.positionMs_);
-        if (currentProject.duration) {
-            playhead.setAttribute('aria-valuemax', currentProject.duration);
+        var metrics = TimelineZoom.getMetrics();
+        var duration = Project.timelineDurationMs();
+        var absoluteX = (this.positionMs_ / duration) * metrics.totalWidth;
+        if (metrics.visibleWidth > 0) {
+            var visibleX = absoluteX - metrics.scrollOffset;
+            var leftPercent = (visibleX / metrics.visibleWidth) * 100;
+            if (leftPercent < -1 || leftPercent > 101) {
+                playhead.style.visibility = 'hidden';
+            } else {
+                playhead.style.visibility = 'visible';
+                playhead.style.left = leftPercent + '%';
+            }
         }
+        playhead.setAttribute('aria-valuenow', this.positionMs_);
+        playhead.setAttribute('aria-valuemax', duration);
+        var formatted = UI.mediaDuration(this.positionMs_);
+        playhead.setAttribute('aria-valuetext', formatted);
+        playhead.title = formatted;
+        var handle = playhead.querySelector('.playhead-handle');
+        if (handle) {
+            handle.title = formatted;
+        }
+        var timeLabel = document.getElementById('playheadTimeLabel');
+        if (timeLabel) {
+            timeLabel.textContent = formatted;
+        }
+        if (options.follow) {
+            TimelineZoom.ensureTimeVisible(this.positionMs_);
+        }
+        UI.updateTimelineActions();
     }
 };
 
@@ -1613,13 +2099,13 @@ const ProjectSave = {
 
 const Preview = {
     running: false,
-    statusTimer: null,
+    suppressVideoSync: false,
+    durationMs: 0,
     init: function() {
         this.container = document.querySelector('.preview-container');
         this.controls = document.getElementById('previewControls');
         this.video = document.getElementById('previewVideo');
         this.placeholder = document.getElementById('previewPlaceholder');
-        this.status = document.getElementById('previewStatus');
         this.bindTransport(document.getElementById('playBtn'), 'play');
         this.bindTransport(document.getElementById('stopBtn'), 'stop');
         this.bindTransport(document.getElementById('previewPlayBtn'), 'play');
@@ -1627,6 +2113,23 @@ const Preview = {
         this.bindTransport(document.getElementById('previewForwardBtn'), 'forward');
         this.bindTransport(document.getElementById('previewPrevFrameBtn'), 'prevFrame');
         this.bindTransport(document.getElementById('previewNextFrameBtn'), 'nextFrame');
+        if (this.video) {
+            this.video.addEventListener('timeupdate', function() {
+                Preview.syncPlayheadFromVideo();
+            });
+            this.video.addEventListener('play', function() {
+                Playhead.setFollowingPlayback(true);
+            });
+            this.video.addEventListener('pause', function() {
+                Playhead.setFollowingPlayback(false);
+            });
+            this.video.addEventListener('ended', function() {
+                Playhead.setFollowingPlayback(false);
+            });
+            this.video.addEventListener('seeked', function() {
+                Preview.syncPlayheadFromVideo();
+            });
+        }
     },
     bindTransport: function(button, action) {
         if (!button) {
@@ -1695,6 +2198,31 @@ const Preview = {
             this.controls.classList.add('visually-hidden');
         }
     },
+    syncPlayheadFromVideo: function() {
+        if (this.suppressVideoSync || !this.hasLoadedVideo() || !this.video) {
+            return;
+        }
+        Playhead.setPositionMs(Math.round(this.video.currentTime * 1000), { fromVideo: true, follow: true });
+    },
+    syncFromPlayhead: function(positionMs) {
+        if (!this.hasLoadedVideo() || !this.video) {
+            return;
+        }
+        var seekSec = positionMs / 1000;
+        var maxSec = isFinite(this.video.duration) ? this.video.duration : seekSec;
+        if (seekSec < 0 || seekSec > maxSec) {
+            return;
+        }
+        if (Math.abs(this.video.currentTime - seekSec) < 0.05) {
+            return;
+        }
+        this.suppressVideoSync = true;
+        this.video.currentTime = seekSec;
+        this.suppressVideoSync = false;
+    },
+    seekVideoToPlayhead: function() {
+        this.syncFromPlayhead(Playhead.positionMs());
+    },
     play: function() {
         if (this.hasLoadedVideo()) {
             if (this.video.paused) {
@@ -1713,9 +2241,10 @@ const Preview = {
     seek: function(deltaSeconds) {
         if (this.hasLoadedVideo()) {
             this.video.currentTime = Math.max(0, this.video.currentTime + deltaSeconds);
+            this.syncPlayheadFromVideo();
             return;
         }
-        Playhead.setPositionMs(Playhead.positionMs() + deltaSeconds * 1000);
+        Playhead.setPositionMs(Playhead.positionMs() + deltaSeconds * 1000, { follow: true });
     },
     stepFrame: function(direction) {
         var fps = (currentProject && currentProject.frameRate) || 30;
@@ -1723,28 +2252,10 @@ const Preview = {
         if (this.hasLoadedVideo()) {
             this.video.pause();
             this.video.currentTime = Math.max(0, this.video.currentTime + stepMs / 1000);
+            this.syncPlayheadFromVideo();
             return;
         }
-        Playhead.setPositionMs(Playhead.positionMs() + stepMs);
-    },
-    setStatus: function(message, autoHide) {
-        if (!this.status) {
-            return;
-        }
-        this.status.textContent = message;
-        this.status.classList.remove('visually-hidden');
-        if (this.statusTimer) {
-            clearTimeout(this.statusTimer);
-            this.statusTimer = null;
-        }
-        if (autoHide) {
-            var self = this;
-            this.statusTimer = setTimeout(function() {
-                if (self.status) {
-                    self.status.classList.add('visually-hidden');
-                }
-            }, 3000);
-        }
+        Playhead.setPositionMs(Playhead.positionMs() + stepMs, { follow: true });
     },
     generate: function() {
         if (!currentProject.id || this.running) {
@@ -1755,7 +2266,6 @@ const Preview = {
         var previewPlayBtn = document.getElementById('previewPlayBtn');
         UI.setButtonBusy(playBtn, true);
         UI.setButtonBusy(previewPlayBtn, true);
-        this.setStatus('Generating preview…');
         UI.notify('Generating preview…', 'info');
         ProjectSave.save({ silent: true })
             .then(function() {
@@ -1776,13 +2286,23 @@ const Preview = {
                     throw new Error(data.error);
                 }
                 Preview.video.src = data.downloadUrl + '?t=' + Date.now();
+                Preview.durationMs = data.durationSeconds
+                    ? Math.round(data.durationSeconds * 1000)
+                    : Project.contentDurationMs();
                 Preview.showVideo();
-                Preview.setStatus('Preview ready', true);
                 UI.notify('Preview ready.', 'success');
-                return Preview.video.play();
+                return new Promise(function(resolve, reject) {
+                    Preview.video.onloadedmetadata = function() {
+                        Preview.durationMs = Math.round(Preview.video.duration * 1000);
+                        Preview.seekVideoToPlayhead();
+                        Preview.video.play().then(resolve).catch(reject);
+                    };
+                    Preview.video.onerror = function() {
+                        reject(new Error('Failed to load preview video'));
+                    };
+                });
             })
             .catch(function(err) {
-                Preview.setStatus('Preview failed: ' + err.message);
                 UI.notify('Preview failed: ' + err.message + ' — check MLT status and try again.', 'error');
             })
             .finally(function() {
@@ -1792,16 +2312,160 @@ const Preview = {
             });
     },
     stop: function() {
+        Playhead.setFollowingPlayback(false);
         this.showPlaceholder();
-        if (this.status) {
-            this.status.classList.add('visually-hidden');
-            this.status.textContent = '';
-        }
-        if (this.statusTimer) {
-            clearTimeout(this.statusTimer);
-            this.statusTimer = null;
-        }
         Playhead.setPositionMs(0);
+    }
+};
+
+const ClipTrim = {
+    active: null,
+    init: function() {
+        var self = this;
+        document.addEventListener('mousemove', function(e) { self.onMove(e); });
+        document.addEventListener('mouseup', function(e) { self.onEnd(e); });
+    },
+    start: function(e, clipHash, edge) {
+        e.preventDefault();
+        var clip = Project.findClip(clipHash);
+        if (!clip) {
+            return;
+        }
+        var track = Project.findTrack(clip.trackIndex);
+        if (track && track.locked) {
+            UI.notify('Track is locked.', 'error');
+            return;
+        }
+        var partners = Project.findAvPartners(clip);
+        this.active = {
+            clipHash: clipHash,
+            edge: edge,
+            startX: e.clientX,
+            snapshot: partners.map(function(c) {
+                return {
+                    hash: c.hash,
+                    start: c.start,
+                    duration: Project.clipEffectiveDuration(c),
+                    sourceIn: c.sourceIn || 0,
+                    sourceOut: c.sourceOut || 0
+                };
+            })
+        };
+    },
+    restoreSnapshot: function() {
+        if (!this.active) {
+            return;
+        }
+        this.active.snapshot.forEach(function(s) {
+            var c = Project.findClip(s.hash);
+            if (c) {
+                c.start = s.start;
+                c.duration = s.duration;
+                c.sourceIn = s.sourceIn;
+                c.sourceOut = s.sourceOut;
+            }
+        });
+    },
+    onMove: function(e) {
+        if (!this.active) {
+            return;
+        }
+        var metrics = TimelineZoom.getMetrics();
+        if (metrics.totalWidth <= 0) {
+            return;
+        }
+        this.restoreSnapshot();
+        var deltaPx = e.clientX - this.active.startX;
+        var deltaMs = Math.round((deltaPx / metrics.totalWidth) * Project.timelineDurationMs());
+        var primary = this.active.snapshot[0];
+        var changed = false;
+        if (this.active.edge === 'left') {
+            changed = Project.trimClipLeft(this.active.clipHash, primary.start + deltaMs);
+        } else {
+            changed = Project.trimClipRight(this.active.clipHash, primary.start + primary.duration + deltaMs);
+        }
+        if (changed) {
+            UI.reconciliateClips();
+        }
+    },
+    onEnd: function() {
+        if (!this.active) {
+            return;
+        }
+        ProjectSave.schedule();
+        this.active = null;
+    }
+};
+
+const MenuBar = {
+    init: function() {
+        document.querySelectorAll('.menu-item--dropdown').forEach(function(item) {
+            item.addEventListener('click', function(e) {
+                if (e.target.closest('.menu-dropdown-item')) {
+                    return;
+                }
+                e.stopPropagation();
+                var open = item.classList.contains('menu-item--open');
+                document.querySelectorAll('.menu-item--open').forEach(function(el) {
+                    el.classList.remove('menu-item--open');
+                });
+                if (!open) {
+                    item.classList.add('menu-item--open');
+                }
+            });
+        });
+        document.addEventListener('click', function() {
+            document.querySelectorAll('.menu-item--open').forEach(function(el) {
+                el.classList.remove('menu-item--open');
+            });
+        });
+        document.querySelectorAll('.menu-dropdown-item').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                MenuBar.handleAction(btn.getAttribute('data-action'));
+            });
+        });
+    },
+    handleAction: function(action) {
+        switch (action) {
+            case 'file-new':
+                window.location.href = '/editor/new';
+                break;
+            case 'file-open':
+                window.location.href = '/';
+                break;
+            case 'file-save':
+                ProjectSave.save({ silent: false });
+                break;
+            case 'file-export':
+                document.getElementById('exportModal').style.display = 'flex';
+                break;
+            case 'edit-cut':
+                Project.cutAtPlayhead();
+                break;
+            case 'edit-delete':
+                var hash = UI.getSelectedClipHash();
+                if (hash) {
+                    Project.requestDeleteClip(hash);
+                } else {
+                    UI.notify('Select a clip to delete.', 'error');
+                }
+                break;
+            case 'edit-deselect':
+                UI.deselectAll();
+                break;
+            case 'view-zoom-in':
+                TimelineZoom.zoomIn();
+                break;
+            case 'view-zoom-out':
+                TimelineZoom.zoomOut();
+                break;
+            case 'view-fit':
+                TimelineZoom.fitToTimeline();
+                break;
+            case 'help-about':
+                UI.notify('Video Creator — non-linear video editor (v1.0.0)', 'info');
+                break;
+        }
     }
 };
 
@@ -1843,7 +2507,14 @@ const Export = {
                 if (progressText) {
                     progressText.textContent = 'Rendering video (this may take a while)...';
                 }
-                return fetch('/api/editor/' + currentProject.id + '/render', { method: 'POST' });
+                return fetch('/api/editor/' + currentProject.id + '/render', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        format: (document.getElementById('exportFormat') || {}).value || 'mp4',
+                        quality: (document.getElementById('exportQuality') || {}).value || 'high'
+                    })
+                });
             })
             .then(function(response) { return response.json(); })
             .then(function(data) {
@@ -2041,7 +2712,36 @@ document.addEventListener('DOMContentLoaded', function() {
     Preview.init();
     Export.init();
     ProjectSave.init();
+    MenuBar.init();
+    ClipTrim.init();
     UI.updateTimelineActions();
+
+    var applyTransitionBtn = document.getElementById('applyTransitionBtn');
+    if (applyTransitionBtn) {
+        applyTransitionBtn.addEventListener('click', function() {
+            var hash = UI.getSelectedClipHash();
+            if (!hash) {
+                UI.notify('Select a clip to apply a transition.', 'error');
+                return;
+            }
+            var value = (document.getElementById('cmb-transition') || {}).value || '';
+            Project.applyClipTransition(hash, value);
+            UI.notify(value ? 'Transition applied.' : 'Transition cleared.', 'success');
+        });
+    }
+    var applyEffectBtn = document.getElementById('applyEffectBtn');
+    if (applyEffectBtn) {
+        applyEffectBtn.addEventListener('click', function() {
+            var hash = UI.getSelectedClipHash();
+            if (!hash) {
+                UI.notify('Select a clip to apply an effect.', 'error');
+                return;
+            }
+            var value = (document.getElementById('cmb-effect') || {}).value || '';
+            Project.applyClipEffect(hash, value);
+            UI.notify(value ? 'Effect applied.' : 'Effect cleared.', 'success');
+        });
+    }
 
     var addVideoTrackBtn = document.getElementById('addVideoTrackBtn');
     var addAudioTrackBtn = document.getElementById('addAudioTrackBtn');
@@ -2054,7 +2754,7 @@ document.addEventListener('DOMContentLoaded', function() {
         addAudioTrackBtn.addEventListener('click', function() { Project.addTrack('AUDIO'); });
     }
     if (cutClipBtn) {
-        cutClipBtn.addEventListener('click', function() { Project.cutSelectedClipAtPlayhead(); });
+        cutClipBtn.addEventListener('click', function() { Project.cutAtPlayhead(); });
     }
     if (deleteClipBtn) {
         deleteClipBtn.addEventListener('click', function() {
@@ -2067,11 +2767,19 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     document.addEventListener('keydown', function(e) {
+        if (document.activeElement && document.activeElement.tagName === 'INPUT') {
+            return;
+        }
         if (e.key === 'Delete' || e.key === 'Backspace') {
             var hash = UI.getSelectedClipHash();
-            if (hash && document.activeElement && document.activeElement.tagName !== 'INPUT') {
+            if (hash) {
                 e.preventDefault();
                 Project.requestDeleteClip(hash);
+            }
+        } else if (e.key === 's' || e.key === 'S') {
+            if (Project.canCutAtPlayhead()) {
+                e.preventDefault();
+                Project.cutAtPlayhead();
             }
         }
     });
@@ -2092,21 +2800,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Tab switching
     const tabs = document.querySelectorAll('.tab');
-    const tabComingSoon = document.getElementById('tabComingSoon');
     tabs.forEach(function(tab) {
         tab.addEventListener('click', function() {
-            tabs.forEach(function(t) { t.classList.remove('active'); });
-            tab.classList.add('active');
-            var label = tab.textContent.trim();
-            if (tabComingSoon) {
-                if (label === 'Properties') {
-                    tabComingSoon.classList.add('visually-hidden');
-                    tabComingSoon.textContent = '';
-                } else {
-                    tabComingSoon.textContent = label + ' are not available yet.';
-                    tabComingSoon.classList.remove('visually-hidden');
-                }
-            }
+            UI.switchTab(tab.textContent.trim());
         });
     });
 

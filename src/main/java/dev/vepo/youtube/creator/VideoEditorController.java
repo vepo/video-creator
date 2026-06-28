@@ -24,6 +24,7 @@ import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.NotFoundException;
@@ -61,8 +62,11 @@ public class VideoEditorController {
 
     public record UploadResponse(String fileId, String fileName, String filePath, String message) {}
     public record ErrorResponse(String error) {}
-    public record PreviewResponse(String previewFilename, String downloadUrl, String message) {}
+    public record PreviewResponse(String previewFilename, String downloadUrl, String message, Double durationSeconds) {}
     public record RenderResponse(String outputFilename, String downloadUrl, String message) {}
+    public record RenderRequest(String format, String quality) {}
+    public record MediaRenameRequest(String name) {}
+    public record ProjectMetadataRequest(String name, String description) {}
 
     @GET
     @Produces(MediaType.TEXT_HTML)
@@ -143,6 +147,42 @@ public class VideoEditorController {
         return Response.ok(body).build();
     }
 
+    @DELETE
+    @Path("/api/editor/{projectId}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response deleteProject(@PathParam("projectId") String projectId) {
+        var existing = projects.find(projectId);
+        if (existing.isEmpty()) {
+            return Response.status(Response.Status.NOT_FOUND)
+                           .entity(new ErrorResponse("Project not found"))
+                           .build();
+        }
+        if (!projects.delete(projectId)) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                           .entity(new ErrorResponse("Failed to delete project"))
+                           .build();
+        }
+        return Response.ok(new ErrorResponse("Project deleted")).build();
+    }
+
+    @PUT
+    @Path("/api/projects/{projectId}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response updateProjectMetadata(@PathParam("projectId") String projectId,
+                                          ProjectMetadataRequest body) {
+        var project = projects.find(projectId)
+                              .orElseThrow(() -> new NotFoundException("Project not found"));
+        if (body.name() != null && !body.name().isBlank()) {
+            project.setName(body.name().trim());
+        }
+        if (body.description() != null) {
+            project.setDescription(body.description());
+        }
+        projects.update(project);
+        return Response.ok(project).build();
+    }
+
     @POST
     @Path("/api/editor/{projectId}/media")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
@@ -171,6 +211,53 @@ public class VideoEditorController {
         }
     }
 
+    @DELETE
+    @Path("/api/editor/{projectId}/media/{mediaHash}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response removeMedia(@PathParam("projectId") String projectId,
+                                @PathParam("mediaHash") String mediaHash) {
+        var project = projects.find(projectId)
+                              .orElseThrow(() -> new NotFoundException("Project not found"));
+        var media = project.getMedias().stream()
+                           .filter(m -> mediaHash.equals(m.getHash()))
+                           .findFirst()
+                           .orElseThrow(() -> new NotFoundException("Media not found"));
+        boolean inUse = project.getClips().stream()
+                               .anyMatch(c -> mediaHash.equals(c.getMediaHash()));
+        if (inUse) {
+            return Response.status(Response.Status.CONFLICT)
+                           .entity(new ErrorResponse("Media is used on the timeline. Remove clips first."))
+                           .build();
+        }
+        project.getMedias().remove(media);
+        fileStorageService.deleteFromGridFs(media.getMediaId());
+        projects.update(project);
+        return Response.ok(new ErrorResponse("Media removed")).build();
+    }
+
+    @PUT
+    @Path("/api/editor/{projectId}/media/{mediaHash}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response renameMedia(@PathParam("projectId") String projectId,
+                                @PathParam("mediaHash") String mediaHash,
+                                MediaRenameRequest body) {
+        var project = projects.find(projectId)
+                              .orElseThrow(() -> new NotFoundException("Project not found"));
+        if (body == null || body.name() == null || body.name().isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                           .entity(new ErrorResponse("Name is required"))
+                           .build();
+        }
+        var media = project.getMedias().stream()
+                           .filter(m -> mediaHash.equals(m.getHash()))
+                           .findFirst()
+                           .orElseThrow(() -> new NotFoundException("Media not found"));
+        media.setName(body.name().trim());
+        projects.update(project);
+        return Response.ok(media).build();
+    }
+
     @POST
     @Path("/api/editor/{projectId}/preview")
     @Produces(MediaType.APPLICATION_JSON)
@@ -179,13 +266,15 @@ public class VideoEditorController {
                               .orElseThrow(() -> new NotFoundException("Project not found!!!"));
         try {
             var timeline = timelineAssembler.assemble(project);
-            double previewDuration = Math.min(30.0, Math.max(1.0, timeline.getDuration()));
-            String path = videoProcessingService.generatePreview(timeline, 0, previewDuration);
+            applyPreviewQuality(timeline.getVideoSettings());
+            double previewDuration = Math.max(1.0, timeline.getDuration());
+            String path = videoProcessingService.generatePreview(timeline);
             String previewFilename = Paths.get(path).getFileName().toString();
             return Response.ok(new PreviewResponse(
                     previewFilename,
                     "/download/" + previewFilename,
-                    "Preview generated successfully")).build();
+                    "Preview generated successfully",
+                    previewDuration)).build();
         } catch (Exception e) {
             logger.error("Preview failed", e);
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
@@ -196,14 +285,20 @@ public class VideoEditorController {
 
     @POST
     @Path("/api/editor/{projectId}/render")
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.WILDCARD})
     @Produces(MediaType.APPLICATION_JSON)
-    public Response renderProject(@PathParam("projectId") String projectId) {
+    public Response renderProject(@PathParam("projectId") String projectId,
+                                  RenderRequest request) {
         var project = projects.find(projectId)
                               .orElseThrow(() -> new NotFoundException("Project not found!!!"));
+        String format = request != null && request.format() != null ? request.format() : "mp4";
+        String quality = request != null && request.quality() != null ? request.quality() : "high";
         try {
             var timeline = timelineAssembler.assemble(project);
-            applyExportQuality(timeline.getVideoSettings(), "high");
-            String outputFilename = "rendered_" + System.currentTimeMillis() + ".mp4";
+            applyExportQuality(timeline.getVideoSettings(), quality);
+            applyExportFormat(timeline.getVideoSettings(), format);
+            String ext = extensionForFormat(format);
+            String outputFilename = "rendered_" + System.currentTimeMillis() + "." + ext;
             String outputPath = fileStorageService.getOutputPath(outputFilename).toString();
             videoProcessingService.processTimelineProject(timeline, outputPath);
             return Response.ok(new RenderResponse(
@@ -224,12 +319,15 @@ public class VideoEditorController {
     @Produces(MediaType.APPLICATION_JSON)
     public Response generatePreview(TimelineProject project) {
         try {
-            String previewPath = videoProcessingService.generatePreview(project, 0, 10);
+            project.updateDuration();
+            applyPreviewQuality(project.getVideoSettings());
+            String previewPath = videoProcessingService.generatePreview(project);
             String previewFilename = Paths.get(previewPath).getFileName().toString();
             return Response.ok(new PreviewResponse(
                     previewFilename,
                     "/download/" + previewFilename,
-                    "Preview generated successfully")).build();
+                    "Preview generated successfully",
+                    Math.max(1.0, project.getDuration()))).build();
         } catch (Exception e) {
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                            .entity(new ErrorResponse("Failed to generate preview: %s".formatted(e.getMessage())))
@@ -257,6 +355,23 @@ public class VideoEditorController {
         }
     }
 
+    private void applyPreviewQuality(VideoSettings settings) {
+        if (settings == null) {
+            return;
+        }
+        settings.setCrf(28);
+        settings.setPreset("ultrafast");
+        scalePreviewResolution(settings, 640, 360);
+    }
+
+    private void scalePreviewResolution(VideoSettings settings, int maxWidth, int maxHeight) {
+        int width = settings.getWidth() != null && settings.getWidth() > 0 ? settings.getWidth() : 1280;
+        int height = settings.getHeight() != null && settings.getHeight() > 0 ? settings.getHeight() : 720;
+        double scale = Math.min(1.0, Math.min((double) maxWidth / width, (double) maxHeight / height));
+        settings.setWidth(Math.max(2, (int) Math.round(width * scale)));
+        settings.setHeight(Math.max(2, (int) Math.round(height * scale)));
+    }
+
     private void applyExportQuality(VideoSettings settings, String quality) {
         if (settings == null) {
             return;
@@ -265,15 +380,48 @@ public class VideoEditorController {
             case "low" -> {
                 settings.setCrf(28);
                 settings.setPreset("ultrafast");
+                scalePreviewResolution(settings, 854, 480);
             }
             case "medium" -> {
                 settings.setCrf(23);
                 settings.setPreset("medium");
+                scalePreviewResolution(settings, 1280, 720);
             }
             default -> {
                 settings.setCrf(18);
                 settings.setPreset("slow");
             }
         }
+    }
+
+    private void applyExportFormat(VideoSettings settings, String format) {
+        if (settings == null) {
+            return;
+        }
+        switch (format == null ? "mp4" : format.toLowerCase()) {
+            case "webm" -> {
+                settings.setVideoCodec("libvpx-vp9");
+                settings.setAudioCodec("libopus");
+            }
+            case "mov" -> {
+                settings.setVideoCodec("libx264");
+                settings.setAudioCodec("aac");
+            }
+            default -> {
+                settings.setVideoCodec("libx264");
+                settings.setAudioCodec("aac");
+            }
+        }
+    }
+
+    private String extensionForFormat(String format) {
+        if (format == null) {
+            return "mp4";
+        }
+        return switch (format.toLowerCase()) {
+            case "webm" -> "webm";
+            case "mov" -> "mov";
+            default -> "mp4";
+        };
     }
 }
