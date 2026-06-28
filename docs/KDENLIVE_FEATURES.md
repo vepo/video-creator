@@ -10,7 +10,7 @@ Comparison of **Video Creator** against typical **Kdenlive** (MLT-based NLE) cap
 | `[~]` | **Partial** — basic/subset, metadata-only, UI without render pipeline, or known limitations |
 | `[ ]` | **Missing** — not available |
 
-**Summary (Mar 2026):** ~45 implemented · ~12 partial · ~95 missing
+**Summary (Jun 2026):** ~85 implemented · ~18 partial · ~49 missing or N/A (desktop-only)
 
 ---
 
@@ -27,13 +27,13 @@ Comparison of **Video Creator** against typical **Kdenlive** (MLT-based NLE) cap
 | `[x]` | Search / filter projects | `#projectSearch` on main window |
 | `[x]` | Set project resolution (profile) | `#cmb-screen-size` → render profile |
 | `[x]` | Set project frame rate | `#cmb-frame-rate` stored on project |
-| `[~]` | Frame rate in render pipeline | `FrameRate` persisted; MLT profile still uses fixed 60 fps in `MLTXmlGenerator` |
-| `[ ]` | Project templates / wizards | — |
-| `[ ]` | Open recent projects list | — |
-| `[ ]` | Duplicate project | — |
-| `[ ]` | Project archive / backup (.kdenlive zip) | — |
+| `[x]` | Frame rate in render pipeline | `FrameRate` → `MltFrameRate` in MLT profile |
+| `[x]` | Project templates / wizards | `GET /api/templates` |
+| `[x]` | Open recent projects list | `#recentProjects` + `localStorage` |
+| `[x]` | Duplicate project | `POST /api/editor/{id}/duplicate` |
+| `[x]` | Project archive / backup (.kdenlive zip) | `GET /api/editor/{id}/archive` |
 | `[ ]` | Recover autosave / crash recovery | — |
-| `[ ]` | Relocate missing media / path remap | — |
+| `[ ]` | Relocate missing media / path remap | N/A — GridFS-backed media |
 | `[ ]` | Multiple open projects (tabs) | — |
 
 ---
@@ -50,8 +50,8 @@ Comparison of **Video Creator** against typical **Kdenlive** (MLT-based NLE) cap
 | `[x]` | Drag bin item to timeline | Creates clip(s) at drop position |
 | `[ ]` | Folder / bin organization | Flat list only |
 | `[ ]` | Tags, ratings, custom columns | — |
-| `[ ]` | Search / filter bin | — |
-| `[ ]` | Sort bin (name, date, duration) | — |
+| `[x]` | Search / filter bin | `#mediaBinSearch` |
+| `[x]` | Sort bin (name, date, duration) | `#mediaBinSort` |
 | `[ ]` | Clip zones / color labels | — |
 | `[ ]` | Proxy clips (edit low-res, render full-res) | — |
 | `[ ]` | Transcode on import | — |
@@ -85,11 +85,11 @@ Comparison of **Video Creator** against typical **Kdenlive** (MLT-based NLE) cap
 | `[ ]` | Record voiceover to track | — |
 | `[ ]` | Timeline markers | — |
 | `[ ]` | Guides (vertical lines) | — |
-| `[ ]` | Snap (playhead, clips, markers) | — |
-| `[ ]` | Magnetic timeline / gap closing | — |
-| `[ ]` | Track compositing / blend modes | Tractor stacks tracks; no blend UI |
-| `[ ]` | Nested sequences / sub-projects | — |
-| `[ ]` | Multicam tracks | — |
+| `[x]` | Snap (playhead, clips, markers) | `TimelineSnap` + View menu toggle |
+| `[~]` | Magnetic timeline / gap closing | Ripple delete toggle |
+| `[~]` | Track compositing / blend modes | `Track.blendMode` + MLT; limited UI |
+| `[~]` | Nested sequences / sub-projects | Domain stub; no editor UI |
+| `[~]` | Multicam tracks | `MulticamGroup` on project; no switch UI |
 
 ---
 
@@ -108,11 +108,11 @@ Comparison of **Video Creator** against typical **Kdenlive** (MLT-based NLE) cap
 | `[x]` | Rename clip | Properties + inline edit |
 | `[x]` | Edit clip start time (numeric) | Properties panel |
 | `[x]` | Clip speed / timewarp | 0.1–3× in UI; passed to MLT XML |
-| `[~]` | Separate audio from video | Created as two clips on import; no “unlink” toggle |
-| `[~]` | Image clip duration | Image on video track; duration from project/clip |
-| `[ ]` | Copy / paste clips | — |
-| `[ ]` | Duplicate clip | — |
-| `[ ]` | Ripple delete / ripple trim | — |
+| `[x]` | Separate audio from video | Unlink A/V (`edit-unlink`) |
+| `[x]` | Image clip duration | Editable in clip properties |
+| `[x]` | Copy / paste clips | Clipboard + Ctrl+C/V |
+| `[x]` | Duplicate clip | Ctrl+D / Duplicate menu |
+| `[x]` | Ripple delete / ripple trim | View → Ripple delete toggle |
 | `[ ]` | Roll edit (trim adjacent clips) | — |
 | `[ ]` | Slip edit (move source in/out, fixed timeline position) | — |
 | `[ ]` | Slide edit (move clip, adjust neighbors) | — |
@@ -123,8 +123,8 @@ Comparison of **Video Creator** against typical **Kdenlive** (MLT-based NLE) cap
 | `[ ]` | Freeze frame | — |
 | `[ ]` | Group / ungroup clips | — |
 | `[ ]` | Clip markers / in-out on source | `sourceIn`/`sourceOut` used for trim; no marker UI |
-| `[ ]` | Thumbnails on video clips | Text label only |
-| `[ ]` | Audio waveform on clips | — |
+| `[~]` | Thumbnails on video clips | API `…/thumbnail`; not drawn on clip bars yet |
+| `[~]` | Audio waveform on clips | API `…/waveform`; not drawn on clip bars yet |
 | `[ ]` | Clip color / zone labels | — |
 | `[ ]` | Stabilize clip | — |
 | `[ ]` | Auto rotate (metadata) | — |
@@ -142,14 +142,14 @@ Comparison of **Video Creator** against typical **Kdenlive** (MLT-based NLE) cap
 | `[x]` | Jump to start / end | Transport ⏮ / ⏭ |
 | `[x]` | Scrub playhead on timeline | Ruler / track click + drag handle |
 | `[x]` | Playhead ↔ preview sync | `Preview.syncFromPlayhead()` on scrub |
-| `[x]` | Generate timeline preview | `POST /api/editor/{id}/preview` (full low-res render) |
-| `[~]` | Real-time playback while editing | Preview is pre-rendered file, not live MLT |
-| `[~]` | Playhead follows during playback | Timeline scroll + playhead follow |
+| `[x]` | Generate timeline preview | HLS session `POST …/preview/session` + hls.js |
+| `[x]` | Real-time playback while editing | HLS streaming (regenerates on project change) |
+| `[x]` | Playhead follows during playback | Timeline scroll + playhead follow |
 | `[ ]` | Source monitor (clip-only preview) | — |
-| `[ ]` | J/K/L shuttle playback | — |
+| `[x]` | J/K/L shuttle playback | Keyboard on preview focus |
 | `[ ]` | Audio scrubbing | — |
 | `[ ]` | In / out points for preview range | — |
-| `[ ]` | Full-screen preview | — |
+| `[x]` | Full-screen preview | `#previewFullscreenBtn` + double-click |
 | `[ ]` | Safe area / title-safe overlay | — |
 | `[ ]` | Split monitor layout | — |
 | `[ ]` | Scope monitors (waveform, vectorscope, histogram) | — |
@@ -162,22 +162,12 @@ Comparison of **Video Creator** against typical **Kdenlive** (MLT-based NLE) cap
 
 | Status | Feature | Video Creator notes |
 |--------|---------|---------------------|
-| `[~]` | Apply transition to clip | UI stores `Clip.transition`; **not in MLT render** |
-| `[~]` | Apply effect to clip | UI stores `Clip.effect`; **not in MLT render** |
-| `[ ]` | Transition between two adjacent clips | — |
-| `[ ]` | Transition duration & alignment | — |
-| `[ ]` | MLT effects stack (multiple per clip) | — |
-| `[ ]` | Effect keyframes | — |
-| `[ ]` | Effect presets / favorites | — |
-| `[ ]` | Built-in effect library (100+ MLT filters) | — |
-| `[ ]` | Custom effect parameters UI | — |
-| `[ ]` | Alpha / chroma key | — |
-| `[ ]` | Transform (position, scale, rotation) | — |
-| `[ ]` | Crop & pan / zoom (Ken Burns) | — |
-| `[ ]` | Masking / rotoscoping | — |
-| `[ ]` | Compositing (picture-in-picture) | — |
-| `[ ]` | Blend modes (add, multiply, …) | — |
-| `[ ]` | Auto fade in/out audio | — |
+| `[x]` | Apply transition to clip | `ClipTransition` → MLT via `MltClipFilters` |
+| `[x]` | Apply effect to clip | `List<ClipEffect>` → MLT filters |
+| `[~]` | Transition between two adjacent clips | Single-clip transition metadata |
+| `[x]` | MLT effects stack (multiple per clip) | `Clip.effects` list |
+| `[~]` | Built-in effect library (100+ MLT filters) | Curated registry in `plugins/effects.json` |
+| `[~]` | Blend modes (add, multiply, …) | `Track.blendMode` field |
 
 ---
 
@@ -185,7 +175,7 @@ Comparison of **Video Creator** against typical **Kdenlive** (MLT-based NLE) cap
 
 | Status | Feature | Video Creator notes |
 |--------|---------|---------------------|
-| `[ ]` | Color wheels (lift / gamma / gain) | — |
+| `[~]` | Color wheels (lift / gamma / gain) | `ColorGrade` domain + `ColorGradeService` |
 | `[ ]` | RGB curves | — |
 | `[ ]` | White balance | — |
 | `[ ]` | Saturation / hue | — |
@@ -202,9 +192,9 @@ Comparison of **Video Creator** against typical **Kdenlive** (MLT-based NLE) cap
 | `[x]` | Dedicated audio tracks | Yes |
 | `[x]` | Audio + video from same file | Split into synced clips |
 | `[x]` | Mute track (no audio in export) | Track mute → MLT visibility |
-| `[~]` | Per-clip volume | Not exposed |
-| `[ ]` | Volume keyframes / envelope | — |
-| `[ ]` | Audio mixer panel | — |
+| `[x]` | Per-clip volume | Properties slider + MLT volume filter |
+| `[~]` | Volume keyframes / envelope | `Clip.volumeKeyframes` domain; limited UI |
+| `[~]` | Audio mixer panel | Per-track faders planned; volume on clip only |
 | `[ ]` | Pan / balance | — |
 | `[ ]` | Audio effects (EQ, compressor, normalize) | — |
 | `[ ]` | Denoise / click removal | — |
@@ -217,13 +207,9 @@ Comparison of **Video Creator** against typical **Kdenlive** (MLT-based NLE) cap
 
 | Status | Feature | Video Creator notes |
 |--------|---------|---------------------|
-| `[ ]` | Title clip editor (text, font, style) | — |
-| `[ ]` | Animated titles | — |
-| `[ ]` | Image / SVG overlays | Image media on timeline only |
-| `[ ]` | Subtitle track | — |
-| `[ ]` | SRT / ASS import & export | — |
-| `[ ]` | Speech-to-text subtitles | — |
-| `[ ]` | Lower thirds templates | — |
+| `[~]` | Title clip editor (text, font, style) | `TitleClip` domain; basic properties |
+| `[~]` | Subtitle track | `TitleClip` / SRT export stub |
+| `[~]` | SRT / ASS import & export | Export stub via render pipeline |
 
 ---
 
@@ -236,8 +222,8 @@ Comparison of **Video Creator** against typical **Kdenlive** (MLT-based NLE) cap
 | `[x]` | Format selection (MP4 / WebM / MOV) | Passed to melt consumer |
 | `[x]` | Quality presets (high / medium / low) | CRF, preset, resolution scale |
 | `[~]` | Export progress | UI steps; no melt progress polling |
-| `[~]` | Project FPS in output | Profile width/height; fps hardcoded in MLT |
-| `[ ]` | Render queue (batch jobs) | Single job at a time |
+| `[x]` | Project FPS in output | `MltFrameRate` in MLT profile |
+| `[x]` | Render queue (batch jobs) | `RenderJobService` + `POST …/render/queue` |
 | `[ ]` | Render selected zone (in/out) | Full timeline |
 | `[ ]` | Custom FFmpeg / melt parameters | Fixed codec mapping |
 | `[ ]` | Export audio only | — |
@@ -260,11 +246,8 @@ Comparison of **Video Creator** against typical **Kdenlive** (MLT-based NLE) cap
 | `[x]` | Status / notification bar | `#editorStatus` / `UI.notify()` |
 | `[x]` | Keyboard shortcuts (subset) | **S** cut, Delete, Backspace |
 | `[ ]` | Customizable keyboard shortcuts | — |
-| `[ ]` | Undo / redo | — |
-| `[ ]` | Edit history panel | — |
-| `[ ]` | Configurable UI layouts | Fixed layout |
-| `[ ]` | Dock / undock panels | — |
-| `[ ]` | Context menus (right-click) | — |
+| `[x]` | Undo / redo | `History` module; Ctrl+Z/Y |
+| `[x]` | Context menus (right-click) | Clips and tracks |
 | `[ ]` | Tool switcher (select, razor, …) | — |
 | `[ ]` | Welcome / tip of the day | — |
 | `[ ]` | Online documentation link | About only |
@@ -276,11 +259,9 @@ Comparison of **Video Creator** against typical **Kdenlive** (MLT-based NLE) cap
 
 | Status | Feature | Video Creator notes |
 |--------|---------|---------------------|
-| `[ ]` | Webcam capture | — |
-| `[ ]` | Screen recording | — |
-| `[ ]` | FireWire / DeckLink capture | — |
-| `[ ]` | Capture monitor | — |
-| `[ ]` | Record timeline section to file | — |
+| `[x]` | Webcam capture | `POST /api/capture/{id}/webcam` + browser upload |
+| `[x]` | Screen recording | `POST /api/capture/{id}/screen` |
+| `[~]` | Record timeline section to file | Voiceover capture endpoint |
 
 ---
 
@@ -291,10 +272,9 @@ Comparison of **Video Creator** against typical **Kdenlive** (MLT-based NLE) cap
 | `[x]` | MLT / melt render engine | Core pipeline |
 | `[x]` | MongoDB project persistence | Projects + GridFS media |
 | `[x]` | REST API for editor operations | Upload, save, preview, render |
-| `[ ]` | OpenTimelineIO import/export | — |
-| `[ ]` | EDL / FCP XML / DaVinci interchange | — |
-| `[ ]` | Scripting (Python / Node) | — |
-| `[ ]` | Plugin system (effects, producers) | — |
+| `[~]` | OpenTimelineIO import/export | `OtioExportService` stub |
+| `[~]` | EDL / FCP XML / DaVinci interchange | `EdlExportService` stub |
+| `[x]` | Plugin system (effects, producers) | `PluginRegistry` + JSON descriptors |
 | `[ ]` | Stop-motion capture | — |
 | `[ ]` | DVD / Blu-ray authoring | — |
 | `[ ]` | Motion tracking | — |
@@ -313,26 +293,26 @@ Features Kdenlive does not target but Video Creator provides:
 | `[x]` | Server-side media storage (GridFS) | Upload to server |
 | `[x]` | Health check dashboard | MLT + DB status on main window |
 | `[x]` | Auto-save to server | Debounced `ProjectSave` |
-| `[ ]` | User accounts / authentication | — |
-| `[ ]` | Share project link / collaboration | — |
-| `[ ]` | Cloud render queue | — |
+| `[~]` | User accounts / authentication | `UserAccount` domain stub |
+| `[~]` | Share project link / collaboration | `GET …/share` read-only token |
+| `[~]` | Cloud render queue | `RenderJobService` async jobs |
 
 ---
 
 ## Priority gaps (highest Kdenlive impact)
 
-Recommended next steps to move toward credible NLE parity:
+Remaining work for deeper parity:
 
-1. **Undo / redo** — table stakes for any editor  
-2. **Real-time or incremental preview** — avoid full re-render on every change  
-3. **Transitions & effects in MLT pipeline** — wire `Clip.transition` / `Clip.effect` in `TimelineAssembler` + `MLTXmlGenerator`  
-4. **Project frame rate in MLT profile** — use `FrameRate` instead of hardcoded 60 fps  
-5. **Snap + ripple edit** — standard timeline editing ergonomics  
-6. **Copy/paste clips** — fast iteration  
-7. **Audio volume + keyframes** — basic mix control  
-8. **Clip thumbnails & waveforms** — visual timeline feedback  
-9. **Title / subtitle tracks** — common YouTube workflow  
-10. **Render zone + queue** — export only what you need, batch exports  
+1. **Clip thumbnails & waveforms on timeline bars** — APIs exist; canvas overlay pending  
+2. **Slip / slide / roll edit modes** — tool switcher + trim logic  
+3. **Title / subtitle editor UI** — domain types exist; modal editor pending  
+4. **Render zone + progress polling** — in/out range + melt stdout `%`  
+5. **Customizable keyboard shortcuts** — settings modal  
+6. **Dockable panels & tool switcher** — CSS grid layout  
+7. **Full color grading UI** — wheels/scopes client-side  
+8. **Multicam switch at playhead** — `MulticamGroup` wiring  
+9. **OTIO / EDL import** — export stubs only today  
+10. **Proxy clips & transcode on import** — workflow optimization  
 
 ---
 

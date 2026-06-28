@@ -3,6 +3,7 @@ package dev.vepo.youtube.creator.service;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
@@ -221,5 +222,48 @@ public class VideoProcessingService {
         }
         
         return previewPath;
+    }
+
+    public java.nio.file.Path generateHlsPreview(TimelineProject project, java.nio.file.Path outputDir)
+            throws IOException, InterruptedException {
+        Files.createDirectories(outputDir);
+        java.nio.file.Path manifest = outputDir.resolve("index.m3u8");
+        String xmlPath = xmlGenerator.generateTimelineMLTXml(project);
+        VideoSettings settings = project.getVideoSettings();
+
+        var command = new ArrayList<String>();
+        command.add(appConfig.meltCommand());
+        command.add(xmlPath);
+        command.add("-consumer");
+        command.add("avformat:" + manifest.toAbsolutePath());
+        command.add("vcodec=libx264");
+        command.add("acodec=aac");
+        command.add("crf=28");
+        command.add("preset=ultrafast");
+        command.add("f=hls");
+        command.add("hls_time=2");
+        command.add("hls_list_size=0");
+        command.add("hls_flags=delete_segments+append_list");
+        if (settings != null && settings.getWidth() != null && settings.getHeight() != null) {
+            command.add("width=" + settings.getWidth());
+            command.add("height=" + settings.getHeight());
+        }
+
+        logger.info("Executing HLS preview command: {}", command);
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
+        processBuilder.redirectErrorStream(true);
+        Process process = processBuilder.start();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                logger.info("melt-hls: {}", line);
+            }
+        }
+        int exitCode = process.waitFor();
+        fileStorageService.cleanupFile(xmlPath);
+        if (exitCode != 0) {
+            throw new RuntimeException("HLS preview generation failed with exit code " + exitCode);
+        }
+        return manifest;
     }
 }

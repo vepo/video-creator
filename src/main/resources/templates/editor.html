@@ -12,7 +12,9 @@
     <link rel="stylesheet" href="/css/editor.css">
     <script>
         let currentProject = {project.asJson.raw ?: '{}'};
+        const meltAvailable = {meltAvailable ?: false};
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
     <script src="/javascript/editor.js"></script>
 </head>
 <body>
@@ -35,8 +37,14 @@
                 <div class="menu-item menu-item--dropdown" data-menu="edit">
                     <span>Edit</span>
                     <div class="menu-dropdown" role="menu">
+                        <button type="button" class="menu-dropdown-item" data-action="edit-undo" role="menuitem" disabled>Undo</button>
+                        <button type="button" class="menu-dropdown-item" data-action="edit-redo" role="menuitem" disabled>Redo</button>
                         <button type="button" class="menu-dropdown-item" data-action="edit-cut" role="menuitem">Cut at Playhead</button>
+                        <button type="button" class="menu-dropdown-item" data-action="edit-copy" role="menuitem">Copy</button>
+                        <button type="button" class="menu-dropdown-item" data-action="edit-paste" role="menuitem">Paste</button>
+                        <button type="button" class="menu-dropdown-item" data-action="edit-duplicate" role="menuitem">Duplicate</button>
                         <button type="button" class="menu-dropdown-item" data-action="edit-delete" role="menuitem">Delete Clip</button>
+                        <button type="button" class="menu-dropdown-item" data-action="edit-unlink" role="menuitem">Unlink A/V</button>
                         <button type="button" class="menu-dropdown-item" data-action="edit-deselect" role="menuitem">Deselect All</button>
                     </div>
                 </div>
@@ -46,6 +54,8 @@
                         <button type="button" class="menu-dropdown-item" data-action="view-zoom-in" role="menuitem">Zoom In</button>
                         <button type="button" class="menu-dropdown-item" data-action="view-zoom-out" role="menuitem">Zoom Out</button>
                         <button type="button" class="menu-dropdown-item" data-action="view-fit" role="menuitem">Fit Timeline</button>
+                        <button type="button" class="menu-dropdown-item" data-action="view-snap" role="menuitem" aria-checked="true">Snap: On</button>
+                        <button type="button" class="menu-dropdown-item" data-action="view-ripple" role="menuitem" aria-checked="false">Ripple Delete: Off</button>
                     </div>
                 </div>
                 <div class="menu-item menu-item--dropdown" data-menu="help">
@@ -61,7 +71,8 @@
                 <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#export"/></svg>
                 Save
             </button>
-            <button class="btn btn-secondary" id="playBtn" type="button" title="Generate timeline preview">
+            <button class="btn btn-secondary" id="playBtn" type="button"
+                    {#if !meltAvailable}disabled aria-disabled="true" title="Preview unavailable — MLT not installed"{#else}title="Generate timeline preview"{/if}>
                 <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#play"/></svg>
                 Preview
             </button>
@@ -88,6 +99,14 @@
                 <input type="file" id="mediaFileInput" class="visually-hidden" multiple
                        accept="video/*,audio/*,image/*" tabindex="-1" aria-hidden="true">
             </div>
+            <div class="media-bin-toolbar">
+                <input type="search" id="mediaBinSearch" class="media-bin-search" placeholder="Search media…" aria-label="Search media">
+                <select id="mediaBinSort" class="media-bin-sort" aria-label="Sort media">
+                    <option value="name">Sort by name</option>
+                    <option value="duration">Sort by duration</option>
+                    <option value="type">Sort by type</option>
+                </select>
+            </div>
             <div id="project-files-container" class="panel-content">
                 <div class="drop-zone">
                     <div class="drop-zone-content">
@@ -110,11 +129,13 @@
                 <div class="preview-controls" id="previewControls">
                     <button class="btn btn-secondary" id="previewPrevFrameBtn" type="button" aria-label="Previous frame">|&lt;</button>
                     <button class="btn btn-secondary" id="previewRewindBtn" type="button" aria-label="Rewind">&lt;&lt;</button>
-                    <button class="btn btn-primary" id="previewPlayBtn" type="button" aria-label="Play preview">
+                    <button class="btn btn-primary" id="previewPlayBtn" type="button" aria-label="Play preview"
+                            {#if !meltAvailable}disabled aria-disabled="true"{/if}>
                         <svg class="icon" aria-hidden="true"><use href="/icons/icons.svg#play"/></svg>
                     </button>
                     <button class="btn btn-secondary" id="previewForwardBtn" type="button" aria-label="Forward">&gt;&gt;</button>
                     <button class="btn btn-secondary" id="previewNextFrameBtn" type="button" aria-label="Next frame">&gt;|</button>
+                    <button class="btn btn-secondary" id="previewFullscreenBtn" type="button" aria-label="Fullscreen preview">Full</button>
                 </div>
             </div>
 

@@ -36,6 +36,8 @@ public class Project {
     private long duration;
     private ScreenSize screenSize;
     private FrameRate frameRate;
+    private List<MulticamGroup> multicamGroups;
+    private String shareToken;
     @JsonbTypeSerializer(MongoSerializers.InstantJsonbSerializer.class)
     @JsonbTypeDeserializer(MongoSerializers.InstantJsonbDeserializer.class)
     @JsonSerialize(using = MongoSerializers.InstantJacksonSerializer.class)
@@ -51,6 +53,7 @@ public class Project {
         this.duration = 1000 * 60 * 30; // 30 min
         this.screenSize = ScreenSize.getDefault();
         this.frameRate = FrameRate.getDefault();
+        this.multicamGroups = new ArrayList<>();
         this.createdAt = Instant.now();
     }
 
@@ -144,6 +147,22 @@ public class Project {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public List<MulticamGroup> getMulticamGroups() {
+        return multicamGroups;
+    }
+
+    public void setMulticamGroups(List<MulticamGroup> multicamGroups) {
+        this.multicamGroups = multicamGroups != null ? multicamGroups : new ArrayList<>();
+    }
+
+    public String getShareToken() {
+        return shareToken;
+    }
+
+    public void setShareToken(String shareToken) {
+        this.shareToken = shareToken;
     }
 
     @Override

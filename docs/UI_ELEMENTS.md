@@ -282,3 +282,21 @@ Each entry must include:
 | `data-track-index` | Track controls, `.track-area` | Track lookup |
 | `data-track-row` | `.track-row` | Row layout index |
 | `data-track-type` | `.track-area` | `VIDEO` or `AUDIO` |
+
+---
+
+## Kdenlive parity additions (Jun 2026)
+
+| Name | Selector | Page | Purpose | Behavior | Source |
+|------|----------|------|---------|----------|--------|
+| Undo | `[data-action="edit-undo"]` | editor | Undo last edit | `History.undo()` | `editor.html`, `editor.js` |
+| Redo | `[data-action="edit-redo"]` | editor | Redo | `History.redo()` | `editor.html`, `editor.js` |
+| Copy / Paste / Duplicate | `[data-action="edit-copy"]` etc. | editor | Clipboard ops | `Clipboard` module | `editor.js` |
+| Unlink A/V | `[data-action="edit-unlink"]` | editor | Break sync group | `Project.unlinkAv()` | `editor.js` |
+| Snap toggle | `[data-action="view-snap"]` | editor | Snap clips/playhead | `TimelineSnap` | `editor.js` |
+| Ripple delete toggle | `[data-action="view-ripple"]` | editor | Close gaps on delete | `EditSettings.rippleDelete` | `editor.js` |
+| Media bin search | `#mediaBinSearch` | editor | Filter bin | `MediaBin.filter()` | `editor.html`, `editor.js` |
+| Media bin sort | `#mediaBinSort` | editor | Sort bin | `MediaBin.sort()` | `editor.html`, `editor.js` |
+| Preview fullscreen | `#previewFullscreenBtn` | editor | Fullscreen monitor | Fullscreen API | `editor.html`, `editor.js` |
+| Recent projects | `#recentProjects` | main | Quick open | `localStorage` | `index.html`, `index.js` |
+| Clip volume slider | `#clipVolumeSlider` | editor | Per-clip gain | `Project.updateClipProperty('volume')` | `editor.js` |

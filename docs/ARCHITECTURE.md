@@ -86,7 +86,8 @@ POST /api/editor/{projectId}/media  (multipart)
 ### 3. Render Timeline
 
 ```
-POST /api/timeline/render  (TimelineProject JSON)
+POST /api/editor/{projectId}/render
+  → TimelineAssembler.assemble(Project)
   → VideoProcessingService.processTimelineProject()
       → MLTXmlGenerator.generateTimelineMLTXml()
       → melt -consumer avformat:...
@@ -133,7 +134,7 @@ Mongo database name: `mongodb.database` in `application.properties`.
 | `META-INF/resources/javascript/` | Client-side editor logic |
 | `META-INF/resources/css/` | Styles |
 
-The editor sends `TimelineProject` JSON to `/api/timeline/preview` and `/api/timeline/render`.
+The editor persists `Project` JSON via `PUT /api/editor/{id}`; preview uses HLS sessions (`POST …/preview/session`); export uses `POST …/render` or the render queue.
 
 ## Layer Rules
 

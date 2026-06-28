@@ -15,7 +15,7 @@ Feature: MLT XML generation
     And an input video at "target/test-input/sample.mp4"
     And trim operations from 1.0 to 5.0 seconds
     When MLT XML is generated with trim operations
-    Then the MLT XML should contain entry in="60" out="300"
+    Then the MLT XML should contain entry in="30" out="150"
 
   Scenario: Generate MLT XML for a timeline with clips
     Given a timeline project with a video clip on the video track

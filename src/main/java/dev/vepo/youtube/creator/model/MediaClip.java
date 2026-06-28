@@ -1,5 +1,7 @@
 package dev.vepo.youtube.creator.model;
 
+import java.util.ArrayList;
+import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -16,6 +18,11 @@ public class MediaClip {
     private boolean muted;
     private double volume = 1.0;
     private double speed = 1.0; // Playback speed multiplier
+    private String effect;
+    private String transition;
+    private List<MediaClipEffect> effects = new ArrayList<>();
+    private MediaClipTransition clipTransition;
+    private List<MediaKeyframe> volumeKeyframes = new ArrayList<>();
     
     public MediaClip() {}
     
@@ -63,6 +70,25 @@ public class MediaClip {
 
     public double getSpeed() { return speed; }
     public void setSpeed(double speed) { this.speed = speed; }
+
+    public String getEffect() { return effect; }
+    public void setEffect(String effect) { this.effect = effect; }
+
+    public String getTransition() { return transition; }
+    public void setTransition(String transition) { this.transition = transition; }
+
+    public List<MediaClipEffect> getEffects() { return effects; }
+    public void setEffects(List<MediaClipEffect> effects) {
+        this.effects = effects != null ? effects : new ArrayList<>();
+    }
+
+    public MediaClipTransition getClipTransition() { return clipTransition; }
+    public void setClipTransition(MediaClipTransition clipTransition) { this.clipTransition = clipTransition; }
+
+    public List<MediaKeyframe> getVolumeKeyframes() { return volumeKeyframes; }
+    public void setVolumeKeyframes(List<MediaKeyframe> volumeKeyframes) {
+        this.volumeKeyframes = volumeKeyframes != null ? volumeKeyframes : new ArrayList<>();
+    }
     
     // Helper methods
     public double getEffectiveDuration() {

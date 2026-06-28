@@ -58,4 +58,18 @@ public class Projects {
         var result = collection().deleteOne(Filters.eq("_id", new ObjectId(id)));
         return result.getDeletedCount() > 0;
     }
+
+    public Project duplicate(Project source) {
+        var copy = new Project();
+        copy.setName(source.getName() + " (copy)");
+        copy.setDescription(source.getDescription());
+        copy.setMedias(new ArrayList<>(source.getMedias()));
+        copy.setClips(source.getClips() != null ? new ArrayList<>(source.getClips()) : new ArrayList<>());
+        copy.setTracks(source.getTracks() != null ? new ArrayList<>(source.getTracks()) : new ArrayList<>());
+        copy.setDuration(source.getDuration());
+        copy.setScreenSize(source.getScreenSize());
+        copy.setFrameRate(source.getFrameRate());
+        collection().insertOne(copy);
+        return copy;
+    }
 }

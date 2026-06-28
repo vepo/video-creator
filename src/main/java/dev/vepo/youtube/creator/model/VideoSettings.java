@@ -8,6 +8,8 @@ public class VideoSettings {
     private Integer width;
     private Integer height;
     private Integer audioBitrate = 128;
+    private Integer frameRateNum = 30;
+    private Integer frameRateDen = 1;
     
     public VideoSettings() {}
     
@@ -32,4 +34,10 @@ public class VideoSettings {
     
     public Integer getAudioBitrate() { return audioBitrate; }
     public void setAudioBitrate(Integer audioBitrate) { this.audioBitrate = audioBitrate; }
+
+    public Integer getFrameRateNum() { return frameRateNum; }
+    public void setFrameRateNum(Integer frameRateNum) { this.frameRateNum = frameRateNum; }
+
+    public Integer getFrameRateDen() { return frameRateDen; }
+    public void setFrameRateDen(Integer frameRateDen) { this.frameRateDen = frameRateDen; }
 }

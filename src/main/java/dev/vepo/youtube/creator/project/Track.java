@@ -6,6 +6,7 @@ public class Track {
     private MediaType type;
     private boolean muted;
     private boolean locked;
+    private String blendMode;
 
     public Track() {
     }
@@ -54,5 +55,13 @@ public class Track {
 
     public void setLocked(boolean locked) {
         this.locked = locked;
+    }
+
+    public String getBlendMode() {
+        return blendMode;
+    }
+
+    public void setBlendMode(String blendMode) {
+        this.blendMode = blendMode;
     }
 }

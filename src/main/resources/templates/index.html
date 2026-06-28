@@ -37,6 +37,11 @@
                 </div>
             </div>
             <div class="panel-body">
+                <div class="recent-projects-block" id="recentProjectsSection">
+                    <h2 class="recent-projects-heading">Recent Projects</h2>
+                    <ul id="recentProjectsList" class="recent-projects-list"></ul>
+                    <p id="recentProjectsEmpty" class="placeholder-text recent-projects-empty">Open a project from the editor to see it here.</p>
+                </div>
                 {#if projects.isEmpty()}
                 <div class="empty-state">
                     <p>No projects yet. Create one to start editing.</p>

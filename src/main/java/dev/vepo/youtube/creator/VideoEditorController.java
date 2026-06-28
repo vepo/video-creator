@@ -3,7 +3,6 @@ package dev.vepo.youtube.creator;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Objects;
 
@@ -12,11 +11,20 @@ import org.jboss.resteasy.reactive.multipart.FileUpload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import dev.vepo.youtube.creator.model.TimelineProject;
 import dev.vepo.youtube.creator.model.VideoSettings;
 import dev.vepo.youtube.creator.project.Project;
 import dev.vepo.youtube.creator.project.Projects;
+import dev.vepo.youtube.creator.project.RenderJob;
+import dev.vepo.youtube.creator.service.EdlExportService;
+import dev.vepo.youtube.creator.service.MediaAnalysisService;
 import dev.vepo.youtube.creator.service.MediaService;
+import dev.vepo.youtube.creator.service.OtioExportService;
+import dev.vepo.youtube.creator.service.PluginRegistry;
+import dev.vepo.youtube.creator.service.PreviewSessionService;
+import dev.vepo.youtube.creator.service.ProjectArchiveService;
+import dev.vepo.youtube.creator.service.ProjectTemplateService;
+import dev.vepo.youtube.creator.service.RenderJobService;
+import dev.vepo.youtube.creator.service.ShareLinkService;
 import dev.vepo.youtube.creator.service.TimelineAssembler;
 import dev.vepo.youtube.creator.service.VideoProcessingService;
 import io.quarkus.qute.Location;
@@ -60,11 +68,39 @@ public class VideoEditorController {
     @Inject
     TimelineAssembler timelineAssembler;
 
+    @Inject
+    PreviewSessionService previewSessionService;
+
+    @Inject
+    RenderJobService renderJobService;
+
+    @Inject
+    MediaAnalysisService mediaAnalysisService;
+
+    @Inject
+    ProjectTemplateService projectTemplateService;
+
+    @Inject
+    ProjectArchiveService projectArchiveService;
+
+    @Inject
+    OtioExportService otioExportService;
+
+    @Inject
+    EdlExportService edlExportService;
+
+    @Inject
+    PluginRegistry pluginRegistry;
+
+    @Inject
+    ShareLinkService shareLinkService;
+
     public record UploadResponse(String fileId, String fileName, String filePath, String message) {}
     public record ErrorResponse(String error) {}
-    public record PreviewResponse(String previewFilename, String downloadUrl, String message, Double durationSeconds) {}
+    public record PreviewSessionResponse(String sessionId, String manifestUrl) {}
     public record RenderResponse(String outputFilename, String downloadUrl, String message) {}
     public record RenderRequest(String format, String quality) {}
+    public record RenderQueueRequest(String format, String quality) {}
     public record MediaRenameRequest(String name) {}
     public record ProjectMetadataRequest(String name, String description) {}
 
@@ -259,27 +295,62 @@ public class VideoEditorController {
     }
 
     @POST
-    @Path("/api/editor/{projectId}/preview")
+    @Path("/api/editor/{projectId}/preview/session")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response previewProject(@PathParam("projectId") String projectId) {
-        var project = projects.find(projectId)
-                              .orElseThrow(() -> new NotFoundException("Project not found!!!"));
+    public Response startPreviewSession(@PathParam("projectId") String projectId) {
+        projects.find(projectId)
+                .orElseThrow(() -> new NotFoundException("Project not found!!!"));
         try {
-            var timeline = timelineAssembler.assemble(project);
-            applyPreviewQuality(timeline.getVideoSettings());
-            double previewDuration = Math.max(1.0, timeline.getDuration());
-            String path = videoProcessingService.generatePreview(timeline);
-            String previewFilename = Paths.get(path).getFileName().toString();
-            return Response.ok(new PreviewResponse(
-                    previewFilename,
-                    "/download/" + previewFilename,
-                    "Preview generated successfully",
-                    previewDuration)).build();
+            var session = previewSessionService.startSession(projectId);
+            String manifestUrl = "/preview/" + session.sessionId() + "/index.m3u8";
+            return Response.ok(new PreviewSessionResponse(session.sessionId(), manifestUrl)).build();
         } catch (Exception e) {
-            logger.error("Preview failed", e);
+            logger.error("Preview session failed", e);
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                           .entity(new ErrorResponse("Failed to generate preview: %s".formatted(e.getMessage())))
+                           .entity(new ErrorResponse("Failed to start preview session: %s".formatted(e.getMessage())))
                            .build();
+        }
+    }
+
+    @DELETE
+    @Path("/api/editor/{projectId}/preview/session/{sessionId}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response stopPreviewSession(@PathParam("projectId") String projectId,
+                                       @PathParam("sessionId") String sessionId) {
+        var session = previewSessionService.getSession(sessionId);
+        if (session == null || !projectId.equals(session.projectId())) {
+            return Response.status(Response.Status.NOT_FOUND)
+                           .entity(new ErrorResponse("Preview session not found"))
+                           .build();
+        }
+        previewSessionService.stopSession(sessionId);
+        return Response.ok(new ErrorResponse("Preview session stopped")).build();
+    }
+
+    @GET
+    @Path("/preview/{sessionId}/{path:.*}")
+    public Response servePreviewFile(@PathParam("sessionId") String sessionId,
+                                     @PathParam("path") String path) {
+        var session = previewSessionService.getSession(sessionId);
+        if (session == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        try {
+            var filePath = session.outputDir().resolve(path).normalize();
+            if (!filePath.startsWith(session.outputDir().normalize())) {
+                return Response.status(Response.Status.FORBIDDEN).build();
+            }
+            if (!Files.exists(filePath)) {
+                return Response.status(Response.Status.NOT_FOUND).build();
+            }
+            String contentType = contentTypeForPath(path);
+            return Response.ok(filePath.toFile())
+                    .type(contentType)
+                    .header("Cache-Control", "no-cache")
+                    .build();
+        } catch (Exception e) {
+            logger.error("Failed to serve preview file", e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
         }
     }
 
@@ -314,45 +385,231 @@ public class VideoEditorController {
     }
 
     @POST
-    @Path("/api/timeline/preview")
-    @Consumes(MediaType.APPLICATION_JSON)
+    @Path("/api/editor/{projectId}/duplicate")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response generatePreview(TimelineProject project) {
+    public Response duplicateProject(@PathParam("projectId") String projectId) {
+        var source = projects.find(projectId)
+                             .orElseThrow(() -> new NotFoundException("Project not found"));
+        var copy = projects.duplicate(source);
+        return Response.ok(copy).build();
+    }
+
+    @POST
+    @Path("/api/editor/{projectId}/render/queue")
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.WILDCARD})
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response enqueueRender(@PathParam("projectId") String projectId,
+                                  RenderQueueRequest request) {
         try {
-            project.updateDuration();
-            applyPreviewQuality(project.getVideoSettings());
-            String previewPath = videoProcessingService.generatePreview(project);
-            String previewFilename = Paths.get(previewPath).getFileName().toString();
-            return Response.ok(new PreviewResponse(
-                    previewFilename,
-                    "/download/" + previewFilename,
-                    "Preview generated successfully",
-                    Math.max(1.0, project.getDuration()))).build();
-        } catch (Exception e) {
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                           .entity(new ErrorResponse("Failed to generate preview: %s".formatted(e.getMessage())))
+            String format = request != null ? request.format() : null;
+            String quality = request != null ? request.quality() : null;
+            RenderJob job = renderJobService.enqueue(projectId, format, quality);
+            return Response.accepted(job).build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.NOT_FOUND)
+                           .entity(new ErrorResponse(e.getMessage()))
                            .build();
         }
     }
 
-    @POST
-    @Path("/api/timeline/render")
-    @Consumes(MediaType.APPLICATION_JSON)
+    @GET
+    @Path("/api/editor/{projectId}/render/jobs")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response renderTimelineProject(TimelineProject project) {
-        try {
-            String outputFilename = "rendered_" + System.currentTimeMillis() + ".mp4";
-            String outputPath = fileStorageService.getOutputPath(outputFilename).toString();
-            videoProcessingService.processTimelineProject(project, outputPath);
-            return Response.ok(new RenderResponse(
-                    outputFilename,
-                    "/download/" + outputFilename,
-                    "Video rendered successfully")).build();
-        } catch (Exception e) {
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                           .entity(new ErrorResponse("Failed to render video: %s".formatted(e.getMessage())))
+    public Response listRenderJobs(@PathParam("projectId") String projectId) {
+        return Response.ok(renderJobService.listJobsForProject(projectId)).build();
+    }
+
+    @GET
+    @Path("/api/render/jobs/{jobId}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getRenderJob(@PathParam("jobId") String jobId) {
+        RenderJob job = renderJobService.getJob(jobId);
+        if (job == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                           .entity(new ErrorResponse("Render job not found"))
                            .build();
         }
+        return Response.ok(job).build();
+    }
+
+    @GET
+    @Path("/api/templates")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response listTemplates() {
+        return Response.ok(projectTemplateService.listTemplates()).build();
+    }
+
+    @GET
+    @Path("/api/editor/{projectId}/archive")
+    @Produces("application/zip")
+    public Response downloadArchive(@PathParam("projectId") String projectId) {
+        try {
+            var archivePath = projectArchiveService.createArchive(projectId);
+            return Response.ok(archivePath.toFile())
+                    .header("Content-Disposition",
+                            "attachment; filename=\"project_" + projectId + ".zip\"")
+                    .build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.NOT_FOUND)
+                           .entity(new ErrorResponse(e.getMessage()))
+                           .build();
+        } catch (Exception e) {
+            logger.error("Archive failed", e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                           .entity(new ErrorResponse("Failed to create archive: " + e.getMessage()))
+                           .build();
+        }
+    }
+
+    @GET
+    @Path("/api/editor/{projectId}/share")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response createShareLink(@PathParam("projectId") String projectId) {
+        try {
+            return Response.ok(shareLinkService.createShareLink(projectId)).build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.NOT_FOUND)
+                           .entity(new ErrorResponse(e.getMessage()))
+                           .build();
+        }
+    }
+
+    @GET
+    @Path("/api/editor/{projectId}/export/otio")
+    @Produces(MediaType.APPLICATION_OCTET_STREAM)
+    public Response exportOtio(@PathParam("projectId") String projectId) {
+        try {
+            var path = otioExportService.export(projectId);
+            return Response.ok(path.toFile())
+                    .header("Content-Disposition",
+                            "attachment; filename=\"project_" + projectId + ".otio\"")
+                    .build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.NOT_FOUND)
+                           .entity(new ErrorResponse(e.getMessage()))
+                           .build();
+        } catch (Exception e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                           .entity(new ErrorResponse("OTIO export failed: " + e.getMessage()))
+                           .build();
+        }
+    }
+
+    @GET
+    @Path("/api/editor/{projectId}/export/edl")
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response exportEdl(@PathParam("projectId") String projectId) {
+        try {
+            var path = edlExportService.export(projectId);
+            return Response.ok(path.toFile())
+                    .header("Content-Disposition",
+                            "attachment; filename=\"project_" + projectId + ".edl\"")
+                    .build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.NOT_FOUND)
+                           .entity(new ErrorResponse(e.getMessage()))
+                           .build();
+        } catch (Exception e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                           .entity(new ErrorResponse("EDL export failed: " + e.getMessage()))
+                           .build();
+        }
+    }
+
+    @GET
+    @Path("/api/plugins")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response listPlugins() {
+        return Response.ok(pluginRegistry.listAll()).build();
+    }
+
+    @POST
+    @Path("/api/editor/{projectId}/media/{mediaHash}/analyze")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response analyzeMedia(@PathParam("projectId") String projectId,
+                                 @PathParam("mediaHash") String mediaHash) {
+        var project = projects.find(projectId)
+                              .orElseThrow(() -> new NotFoundException("Project not found"));
+        var media = project.getMedias().stream()
+                           .filter(m -> mediaHash.equals(m.getHash()))
+                           .findFirst()
+                           .orElseThrow(() -> new NotFoundException("Media not found"));
+        try {
+            var result = mediaAnalysisService.analyze(media);
+            return Response.ok(result).build();
+        } catch (Exception e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                           .entity(new ErrorResponse("Analysis failed: " + e.getMessage()))
+                           .build();
+        }
+    }
+
+    @GET
+    @Path("/api/editor/{projectId}/media/{mediaHash}/thumbnail")
+    @Produces("image/jpeg")
+    public Response getMediaThumbnail(@PathParam("projectId") String projectId,
+                                      @PathParam("mediaHash") String mediaHash) {
+        var project = projects.find(projectId)
+                              .orElseThrow(() -> new NotFoundException("Project not found"));
+        var media = project.getMedias().stream()
+                           .filter(m -> mediaHash.equals(m.getHash()))
+                           .findFirst()
+                           .orElseThrow(() -> new NotFoundException("Media not found"));
+        try {
+            var thumbPath = mediaAnalysisService.getThumbnailPath(mediaHash);
+            if (!Files.exists(thumbPath)) {
+                mediaAnalysisService.analyze(media);
+            }
+            thumbPath = mediaAnalysisService.getThumbnailPath(mediaHash);
+            if (!Files.exists(thumbPath)) {
+                return Response.status(Response.Status.NOT_FOUND).build();
+            }
+            return Response.ok(thumbPath.toFile()).build();
+        } catch (Exception e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GET
+    @Path("/api/editor/{projectId}/media/{mediaHash}/waveform")
+    @Produces("image/png")
+    public Response getMediaWaveform(@PathParam("projectId") String projectId,
+                                     @PathParam("mediaHash") String mediaHash) {
+        var project = projects.find(projectId)
+                              .orElseThrow(() -> new NotFoundException("Project not found"));
+        var media = project.getMedias().stream()
+                           .filter(m -> mediaHash.equals(m.getHash()))
+                           .findFirst()
+                           .orElseThrow(() -> new NotFoundException("Media not found"));
+        try {
+            var waveformPath = mediaAnalysisService.getWaveformPath(mediaHash);
+            if (!Files.exists(waveformPath)) {
+                mediaAnalysisService.analyze(media);
+            }
+            waveformPath = mediaAnalysisService.getWaveformPath(mediaHash);
+            if (!Files.exists(waveformPath)) {
+                return Response.status(Response.Status.NOT_FOUND).build();
+            }
+            return Response.ok(waveformPath.toFile()).build();
+        } catch (Exception e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    private String contentTypeForPath(String path) {
+        if (path == null) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+        if (path.endsWith(".m3u8")) {
+            return "application/vnd.apple.mpegurl";
+        }
+        if (path.endsWith(".ts")) {
+            return "video/mp2t";
+        }
+        if (path.endsWith(".mp4")) {
+            return "video/mp4";
+        }
+        return MediaType.APPLICATION_OCTET_STREAM;
     }
 
     private void applyPreviewQuality(VideoSettings settings) {

@@ -1,3 +1,6 @@
+var RECENT_STORAGE_KEY = 'videoCreatorRecent';
+var MAX_RECENT = 8;
+
 document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('.epoch-milli').forEach(function (elm) {
         var content = elm.textContent.trim();
@@ -8,6 +11,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 minute: '2-digit'
             });
         }
+    });
+
+    renderRecentProjects();
+
+    document.querySelectorAll('.project-link, .col-action a[href^="/editor/"]').forEach(function (link) {
+        link.addEventListener('click', function () {
+            var row = link.closest('tr');
+            var id = row ? row.getAttribute('data-project-id') : null;
+            var name = row ? row.getAttribute('data-project-name') : link.textContent.trim();
+            if (!id) {
+                var match = link.getAttribute('href').match(/\/editor\/([^/?#]+)/);
+                id = match ? match[1] : null;
+            }
+            if (id) {
+                trackRecentProject(id, name || 'Untitled project');
+            }
+        });
     });
 
     var searchInput = document.getElementById('projectSearch');
@@ -33,6 +53,7 @@ document.addEventListener('DOMContentLoaded', function () {
             fetch('/api/editor/' + projectId, { method: 'DELETE' })
                 .then(function (response) { return response.json(); })
                 .then(function () {
+                    removeRecentProject(projectId);
                     if (row && row.parentElement) {
                         row.parentElement.removeChild(row);
                     }
@@ -78,6 +99,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (link) {
                         link.textContent = label;
                     }
+                    updateRecentProjectName(projectId, label);
                 })
                 .catch(function () {
                     alert('Failed to rename project.');
@@ -97,6 +119,84 @@ document.addEventListener('DOMContentLoaded', function () {
             updateStatusRow('status-engine', false, 'Not ready');
         });
 });
+
+function loadRecentProjects() {
+    try {
+        return JSON.parse(localStorage.getItem(RECENT_STORAGE_KEY) || '[]');
+    } catch (err) {
+        return [];
+    }
+}
+
+function saveRecentProjects(list) {
+    localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(list.slice(0, MAX_RECENT)));
+}
+
+function trackRecentProject(id, name) {
+    var list = loadRecentProjects().filter(function (p) { return p.id !== id; });
+    list.unshift({ id: id, name: name || 'Untitled project', openedAt: Date.now() });
+    saveRecentProjects(list);
+}
+
+function removeRecentProject(id) {
+    saveRecentProjects(loadRecentProjects().filter(function (p) { return p.id !== id; }));
+}
+
+function updateRecentProjectName(id, name) {
+    var list = loadRecentProjects();
+    list.forEach(function (p) {
+        if (p.id === id) {
+            p.name = name;
+        }
+    });
+    saveRecentProjects(list);
+    renderRecentProjects();
+}
+
+function renderRecentProjects() {
+    var listEl = document.getElementById('recentProjectsList');
+    var emptyEl = document.getElementById('recentProjectsEmpty');
+    var section = document.getElementById('recentProjectsSection');
+    if (!listEl) {
+        return;
+    }
+    var list = loadRecentProjects();
+    listEl.innerHTML = '';
+    if (list.length === 0) {
+        if (emptyEl) {
+            emptyEl.style.display = '';
+        }
+        if (section) {
+            section.classList.add('recent-panel--empty');
+        }
+        return;
+    }
+    if (emptyEl) {
+        emptyEl.style.display = 'none';
+    }
+    if (section) {
+        section.classList.remove('recent-panel--empty');
+    }
+    list.forEach(function (project) {
+        var li = document.createElement('li');
+        li.className = 'recent-project-item';
+        var link = document.createElement('a');
+        link.href = '/editor/' + project.id;
+        link.className = 'recent-project-link';
+        link.textContent = project.name || 'Untitled project';
+        link.addEventListener('click', function () {
+            trackRecentProject(project.id, project.name);
+        });
+        var time = document.createElement('span');
+        time.className = 'recent-project-time';
+        time.textContent = project.openedAt
+            ? new Date(project.openedAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })
+            : '';
+        li.appendChild(link);
+        li.appendChild(time);
+        listEl.appendChild(li);
+    });
+}
 
 function updateStatusRow(id, isOk, label) {
     var row = document.getElementById(id);

@@ -1,5 +1,8 @@
 package dev.vepo.youtube.creator.project;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class Clip {
     private String hash;
     private String name;
@@ -12,8 +15,12 @@ public class Clip {
     private double speed = 1.0;
     private String syncGroup;
     private int trackIndex;
-    private String transition;
-    private String effect;
+    private List<ClipEffect> effects = new ArrayList<>();
+    private ClipTransition transition;
+    private List<Keyframe> volumeKeyframes = new ArrayList<>();
+    private double volume = 100.0;
+    private ColorGrade colorGrade;
+    private TitleClip title;
 
     public String getHash() {
         return hash;
@@ -103,19 +110,51 @@ public class Clip {
         this.trackIndex = trackIndex;
     }
 
-    public String getTransition() {
+    public List<ClipEffect> getEffects() {
+        return effects;
+    }
+
+    public void setEffects(List<ClipEffect> effects) {
+        this.effects = effects != null ? effects : new ArrayList<>();
+    }
+
+    public ClipTransition getTransition() {
         return transition;
     }
 
-    public void setTransition(String transition) {
+    public void setTransition(ClipTransition transition) {
         this.transition = transition;
     }
 
-    public String getEffect() {
-        return effect;
+    public List<Keyframe> getVolumeKeyframes() {
+        return volumeKeyframes;
     }
 
-    public void setEffect(String effect) {
-        this.effect = effect;
+    public void setVolumeKeyframes(List<Keyframe> volumeKeyframes) {
+        this.volumeKeyframes = volumeKeyframes != null ? volumeKeyframes : new ArrayList<>();
+    }
+
+    public double getVolume() {
+        return volume;
+    }
+
+    public void setVolume(double volume) {
+        this.volume = volume;
+    }
+
+    public ColorGrade getColorGrade() {
+        return colorGrade;
+    }
+
+    public void setColorGrade(ColorGrade colorGrade) {
+        this.colorGrade = colorGrade;
+    }
+
+    public TitleClip getTitle() {
+        return title;
+    }
+
+    public void setTitle(TitleClip title) {
+        this.title = title;
     }
 }

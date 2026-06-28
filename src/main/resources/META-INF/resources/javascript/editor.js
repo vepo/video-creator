@@ -319,11 +319,20 @@ const Project = {
             console.error('Media not found!!!', mediaHash);
             return;
         }
+        History.execute(function() {
+            Project.addMediaToTimelineImpl(mediaHash, positionPercent, targetTrackIndex);
+        }, 'Add clip');
+    },
+    addMediaToTimelineImpl: function(mediaHash, positionPercent, targetTrackIndex) {
+        var media = Project.findMedia(mediaHash);
+        if (!media) {
+            return;
+        }
         if (!currentProject.clips) {
             currentProject.clips = [];
         }
 
-        var startMs = Math.round(currentProject.duration * positionPercent / 100);
+        var startMs = TimelineSnap.snapMs(Math.round(currentProject.duration * positionPercent / 100));
         var duration = Project.clipDuration(media);
         var baseIndex = currentProject.clips.length;
         var tracks = Project.resolveAvTracksForDrop(targetTrackIndex);
@@ -384,6 +393,11 @@ const Project = {
         return false;
     },
     moveClipToStart: function(clipHash, startMs, trackIndex) {
+        History.execute(function() {
+            Project.moveClipToStartImpl(clipHash, startMs, trackIndex);
+        }, 'Move clip');
+    },
+    moveClipToStartImpl: function(clipHash, startMs, trackIndex) {
         var clip = Project.findClip(clipHash);
         if (!clip) {
             console.error('Clip not found for move', clipHash);
@@ -392,7 +406,7 @@ const Project = {
         var clips = Project.findAvPartners(clip);
         var media = Project.findMedia(clip.mediaHash);
         var duration = clip.duration > 0 ? clip.duration : Project.clipDuration(media);
-        var clampedStart = Project.clampClipStart(startMs, duration);
+        var clampedStart = Project.clampClipStart(TimelineSnap.snapMs(startMs), duration);
         var avTracks = typeof trackIndex === 'number' ? Project.resolveAvTracksForDrop(trackIndex) : null;
         clips.forEach(function(c) {
             c.start = clampedStart;
@@ -418,15 +432,40 @@ const Project = {
         UI.notify('Clip deleted.', 'info');
     },
     deleteClip: function(clipHash) {
+        History.execute(function() {
+            Project.deleteClipImpl(clipHash);
+        }, 'Delete clip');
+    },
+    deleteClipImpl: function(clipHash) {
         var clip = Project.findClip(clipHash);
         if (!clip) {
             return;
         }
         var toRemove = Project.findAvPartners(clip);
         var removeHashes = toRemove.map(function(c) { return c.hash; });
+        var rippleByTrack = {};
+        if (EditSettings.rippleDelete) {
+            toRemove.forEach(function(c) {
+                var dur = Project.clipEffectiveDuration(c);
+                if (!rippleByTrack[c.trackIndex]) {
+                    rippleByTrack[c.trackIndex] = { start: c.start, shift: dur };
+                } else {
+                    rippleByTrack[c.trackIndex].start = Math.min(rippleByTrack[c.trackIndex].start, c.start);
+                    rippleByTrack[c.trackIndex].shift = Math.max(rippleByTrack[c.trackIndex].shift, dur);
+                }
+            });
+        }
         currentProject.clips = currentProject.clips.filter(function(c) {
             return removeHashes.indexOf(c.hash) === -1;
         });
+        if (EditSettings.rippleDelete) {
+            currentProject.clips.forEach(function(c) {
+                var ripple = rippleByTrack[c.trackIndex];
+                if (ripple && c.start >= ripple.start) {
+                    c.start = Math.max(0, c.start - ripple.shift);
+                }
+            });
+        }
         removeHashes.forEach(function(hash) {
             var el = document.querySelector('[item-hash="' + hash + '"]');
             if (el && el.parentElement) {
@@ -437,6 +476,21 @@ const Project = {
         UI.reconciliateClips();
         ProjectSave.schedule();
         UI.updateTimelineActions();
+    },
+    unlinkAv: function(clipHash) {
+        var clip = Project.findClip(clipHash);
+        if (!clip || !clip.syncGroup) {
+            UI.notify('Clip is not linked to A/V partner.', 'info');
+            return;
+        }
+        History.execute(function() {
+            Project.findAvPartners(clip).forEach(function(c) {
+                c.syncGroup = null;
+            });
+            UI.reconciliateClips();
+            ProjectSave.schedule();
+            UI.notify('A/V unlinked.', 'success');
+        }, 'Unlink A/V');
     },
     splitClip: function(clipHash, splitAtMs, options) {
         options = options || {};
@@ -499,18 +553,20 @@ const Project = {
             UI.notify('Move the playhead inside the clip to cut.', 'error');
             return;
         }
-        Promise.all(cuts.map(function(entry) {
-            return Project.splitClip(entry.hash, entry.cutPoint, { rightSyncGroup: newSyncGroup });
-        })).then(function() {
-            if (newSyncGroup) {
-                Project.repairAvSyncGroups();
-            }
-            UI.reconciliateClips();
-            ProjectSave.schedule();
-            UI.updateTimelineActions();
-            var label = UI.mediaDuration(playheadMs);
-            UI.notify('Cut at ' + label + (cuts.length > 1 ? ' (video + audio).' : '.'), 'success');
-        });
+        History.execute(function() {
+            Promise.all(cuts.map(function(entry) {
+                return Project.splitClip(entry.hash, entry.cutPoint, { rightSyncGroup: newSyncGroup });
+            })).then(function() {
+                if (newSyncGroup) {
+                    Project.repairAvSyncGroups();
+                }
+                UI.reconciliateClips();
+                ProjectSave.schedule();
+                UI.updateTimelineActions();
+                var label = UI.mediaDuration(playheadMs);
+                UI.notify('Cut at ' + label + (cuts.length > 1 ? ' (video + audio).' : '.'), 'success');
+            });
+        }, 'Cut at playhead');
     },
     cutSelectedClipAtPlayhead: function() {
         Project.cutAtPlayhead();
@@ -550,22 +606,31 @@ const Project = {
         return true;
     },
     applyClipTransition: function(clipHash, transition) {
-        var clip = Project.findClip(clipHash);
-        if (!clip) {
-            return;
-        }
-        clip.transition = transition || null;
-        ProjectSave.schedule();
+        History.execute(function() {
+            var clip = Project.findClip(clipHash);
+            if (!clip) {
+                return;
+            }
+            clip.transition = transition || null;
+            ProjectSave.schedule();
+        }, 'Apply transition');
     },
     applyClipEffect: function(clipHash, effect) {
-        var clip = Project.findClip(clipHash);
-        if (!clip) {
-            return;
-        }
-        clip.effect = effect || null;
-        ProjectSave.schedule();
+        History.execute(function() {
+            var clip = Project.findClip(clipHash);
+            if (!clip) {
+                return;
+            }
+            clip.effect = effect || null;
+            ProjectSave.schedule();
+        }, 'Apply effect');
     },
     updateClipProperty: function(clipHash, field, value) {
+        History.execute(function() {
+            Project.updateClipPropertyImpl(clipHash, field, value);
+        }, 'Edit clip property');
+    },
+    updateClipPropertyImpl: function(clipHash, field, value) {
         var clip = Project.findClip(clipHash);
         if (!clip) {
             return;
@@ -574,7 +639,7 @@ const Project = {
         if (field === 'name') {
             partners.forEach(function(c) { c.name = value; });
         } else if (field === 'start') {
-            var startMs = Math.round(parseFloat(value) * 1000);
+            var startMs = TimelineSnap.snapMs(Math.round(parseFloat(value) * 1000));
             var media = Project.findMedia(clip.mediaHash);
             var duration = Project.clipEffectiveDuration(clip);
             var clamped = Project.clampClipStart(startMs, duration);
@@ -583,6 +648,15 @@ const Project = {
         } else if (field === 'speed') {
             var speed = Math.max(0.1, Math.min(3, parseFloat(value) || 1));
             partners.forEach(function(c) { c.speed = speed; });
+        } else if (field === 'volume') {
+            var volume = Math.max(0, Math.min(100, parseFloat(value) || 100));
+            partners.forEach(function(c) { c.volume = volume; });
+        } else if (field === 'duration') {
+            var durMs = Math.round(parseFloat(value) * 1000);
+            if (durMs >= 100) {
+                clip.duration = durMs;
+                clip.sourceOut = (clip.sourceIn || 0) + durMs;
+            }
         }
         UI.reconciliateClips();
         ProjectSave.schedule();
@@ -794,7 +868,9 @@ const DragNDrop = {
         var startMs = Math.round(currentProject.duration * positionPercent / 100);
         if (this.activeDrag && this.activeDrag.kind === 'CLIP') {
             startMs -= this.activeDrag.grabOffsetMs || 0;
-            startMs = Project.clampClipStart(startMs, this.activeDrag.duration);
+            startMs = Project.clampClipStart(TimelineSnap.snapMs(startMs), this.activeDrag.duration);
+        } else {
+            startMs = TimelineSnap.snapMs(startMs);
         }
         return startMs;
     },
@@ -1007,6 +1083,19 @@ const UI = {
             let clip = Project.findClip(hash);
             if (clip) {
                 var displayName = clip.name || (Project.findMedia(clip.mediaHash) && Project.findMedia(clip.mediaHash).name) || '';
+                var media = Project.findMedia(clip.mediaHash);
+                var mediaType = Project.resolveMediaType(media);
+                var volumeHtml = (clip.type === 'AUDIO' || mediaType === 'VIDEO') ?
+                    '<div class="property-group">' +
+                    '<label for="prop-clip-volume">Volume</label>' +
+                    '<input id="prop-clip-volume" type="range" min="0" max="100" step="1" value="' + (clip.volume != null ? clip.volume : 100) + '">' +
+                    '<span id="prop-clip-volume-label">' + (clip.volume != null ? clip.volume : 100) + '%</span>' +
+                    '</div>' : '';
+                var durationHtml = mediaType === 'IMAGE' ?
+                    '<div class="property-group">' +
+                    '<label for="prop-clip-duration">Duration <i>(s)</i></label>' +
+                    '<input id="prop-clip-duration" type="number" value="' + (clip.duration / 1000).toFixed(3) + '" step="0.1" min="0.1">' +
+                    '</div>' : '';
                 itemProperties.insertAdjacentHTML('afterbegin', `<h3>Clip</h3>
                                                                  <div class="property-group">
                                                                      <label for="prop-clip-name">Clip Name</label>
@@ -1020,10 +1109,12 @@ const UI = {
                                                                      <label>Duration</label>
                                                                      <input type="text" disabled value="${UI.mediaDuration(clip.duration)}" >
                                                                  </div>
+                                                                 ${durationHtml}
                                                                  <div class="property-group">
                                                                      <label for="prop-clip-speed">Speed</label>
                                                                      <input id="prop-clip-speed" type="number" value="${clip.speed || 1}" step="0.01" min="0.1" max="3">
-                                                                 </div>`);
+                                                                 </div>
+                                                                 ${volumeHtml}`);
                 UI.bindClipPropertyInputs(hash);
             } else {
                 console.error("Clip cannot be found!", hash);
@@ -1041,6 +1132,9 @@ const UI = {
         var nameInput = document.getElementById('prop-clip-name');
         var startInput = document.getElementById('prop-clip-start');
         var speedInput = document.getElementById('prop-clip-speed');
+        var volumeInput = document.getElementById('prop-clip-volume');
+        var volumeLabel = document.getElementById('prop-clip-volume-label');
+        var durationInput = document.getElementById('prop-clip-duration');
         if (nameInput) {
             nameInput.addEventListener('change', function() {
                 Project.updateClipProperty(clipHash, 'name', nameInput.value.trim());
@@ -1055,6 +1149,22 @@ const UI = {
         if (speedInput) {
             speedInput.addEventListener('change', function() {
                 Project.updateClipProperty(clipHash, 'speed', speedInput.value);
+            });
+        }
+        if (volumeInput) {
+            volumeInput.addEventListener('input', function() {
+                if (volumeLabel) {
+                    volumeLabel.textContent = volumeInput.value + '%';
+                }
+            });
+            volumeInput.addEventListener('change', function() {
+                Project.updateClipProperty(clipHash, 'volume', volumeInput.value);
+            });
+        }
+        if (durationInput) {
+            durationInput.addEventListener('change', function() {
+                Project.updateClipProperty(clipHash, 'duration', durationInput.value);
+                UI.setupItemProperties('CLIP', clipHash);
             });
         }
     },
@@ -1105,7 +1215,8 @@ const UI = {
                     nameEl.title = media.name;
                 }
             }
-        })
+        });
+        MediaBin.refresh();
     },
     clipLayoutPercent: function(clip, media) {
         var duration = clip.duration > 0 ? clip.duration : Project.clipDuration(media);
@@ -2030,6 +2141,392 @@ const Playhead = {
     }
 };
 
+const EditSettings = {
+    rippleDelete: false
+};
+
+const History = {
+    undoStack: [],
+    redoStack: [],
+    maxSize: 50,
+    applying: false,
+    snapshotClips: function() {
+        return {
+            clips: JSON.parse(JSON.stringify(currentProject.clips || [])),
+            tracks: JSON.parse(JSON.stringify(currentProject.tracks || []))
+        };
+    },
+    push: function(label) {
+        if (this.applying) {
+            return;
+        }
+        this.undoStack.push({ label: label || 'Edit', snapshot: this.snapshotClips() });
+        if (this.undoStack.length > this.maxSize) {
+            this.undoStack.shift();
+        }
+        this.redoStack = [];
+        MenuBar.updateEditState();
+    },
+    restore: function(snapshot) {
+        currentProject.clips = JSON.parse(JSON.stringify(snapshot.clips));
+        currentProject.tracks = JSON.parse(JSON.stringify(snapshot.tracks));
+        Project.ensureStructure();
+        UI.reconciliateTracks();
+        UI.reconciliateClips();
+        UI.updateTimelineActions();
+    },
+    undo: function() {
+        if (this.undoStack.length === 0) {
+            return;
+        }
+        this.applying = true;
+        var current = this.snapshotClips();
+        var entry = this.undoStack.pop();
+        this.redoStack.push({ label: entry.label, snapshot: current });
+        this.restore(entry.snapshot);
+        this.applying = false;
+        MenuBar.updateEditState();
+        ProjectSave.schedule();
+        UI.notify('Undo: ' + entry.label, 'info');
+    },
+    redo: function() {
+        if (this.redoStack.length === 0) {
+            return;
+        }
+        this.applying = true;
+        var current = this.snapshotClips();
+        var entry = this.redoStack.pop();
+        this.undoStack.push({ label: entry.label, snapshot: current });
+        this.restore(entry.snapshot);
+        this.applying = false;
+        MenuBar.updateEditState();
+        ProjectSave.schedule();
+        UI.notify('Redo: ' + entry.label, 'info');
+    },
+    execute: function(fn, label) {
+        if (this.applying) {
+            fn();
+            return;
+        }
+        this.push(label);
+        fn();
+    },
+    canUndo: function() {
+        return this.undoStack.length > 0;
+    },
+    canRedo: function() {
+        return this.redoStack.length > 0;
+    }
+};
+
+const Clipboard = {
+    clips: null,
+    collectClips: function(clipHash) {
+        var clip = Project.findClip(clipHash);
+        if (!clip) {
+            return [];
+        }
+        return Project.findAvPartners(clip).map(function(c) {
+            return JSON.parse(JSON.stringify(c));
+        });
+    },
+    copy: function() {
+        var hash = UI.getSelectedClipHash();
+        if (!hash) {
+            UI.notify('Select a clip to copy.', 'error');
+            return;
+        }
+        this.clips = this.collectClips(hash);
+        UI.notify('Clip copied.', 'info');
+    },
+    paste: function() {
+        if (!this.clips || this.clips.length === 0) {
+            UI.notify('Nothing to paste.', 'error');
+            return;
+        }
+        var self = this;
+        History.execute(function() {
+            var playheadMs = Playhead.positionMs();
+            var syncMap = {};
+            var promises = self.clips.map(function(source) {
+                return Hash.generate('paste-' + source.hash + '-' + Date.now() + '-' + Math.random()).then(function(newHash) {
+                    var copy = JSON.parse(JSON.stringify(source));
+                    copy.hash = newHash;
+                    copy.start = playheadMs;
+                    if (copy.syncGroup) {
+                        if (!syncMap[copy.syncGroup]) {
+                            syncMap[copy.syncGroup] = 'sync-paste-' + Date.now() + '-' + Math.random();
+                        }
+                        copy.syncGroup = syncMap[copy.syncGroup];
+                    }
+                    currentProject.clips.push(copy);
+                });
+            });
+            Promise.all(promises).then(function() {
+                UI.reconciliateClips();
+                ProjectSave.schedule();
+                UI.notify('Clip pasted at playhead.', 'success');
+            });
+        }, 'Paste clip');
+    },
+    duplicate: function() {
+        var hash = UI.getSelectedClipHash();
+        if (!hash) {
+            UI.notify('Select a clip to duplicate.', 'error');
+            return;
+        }
+        this.copy();
+        var clip = Project.findClip(hash);
+        if (!clip) {
+            return;
+        }
+        var offsetMs = Project.clipEffectiveDuration(clip);
+        var saved = this.clips;
+        History.execute(function() {
+            Clipboard.clips = saved;
+            var playheadMs = clip.start + offsetMs;
+            var syncMap = {};
+            var promises = saved.map(function(source) {
+                return Hash.generate('dup-' + source.hash + '-' + Date.now() + '-' + Math.random()).then(function(newHash) {
+                    var copy = JSON.parse(JSON.stringify(source));
+                    copy.hash = newHash;
+                    copy.start = playheadMs;
+                    if (copy.syncGroup) {
+                        if (!syncMap[copy.syncGroup]) {
+                            syncMap[copy.syncGroup] = 'sync-dup-' + Date.now() + '-' + Math.random();
+                        }
+                        copy.syncGroup = syncMap[copy.syncGroup];
+                    }
+                    currentProject.clips.push(copy);
+                });
+            });
+            Promise.all(promises).then(function() {
+                UI.reconciliateClips();
+                ProjectSave.schedule();
+                UI.notify('Clip duplicated.', 'success');
+            });
+        }, 'Duplicate clip');
+    }
+};
+
+const TimelineSnap = {
+    enabled: true,
+    thresholdMs: 120,
+    snapMs: function(timeMs) {
+        if (!this.enabled) {
+            return Math.round(timeMs);
+        }
+        var candidates = [Math.round(timeMs)];
+        var gridMs = 1000;
+        candidates.push(Math.round(timeMs / gridMs) * gridMs);
+        Project.allClips().forEach(function(clip) {
+            var media = Project.findMedia(clip.mediaHash);
+            var duration = Project.clipEffectiveDuration(clip);
+            candidates.push(clip.start);
+            candidates.push(clip.start + duration);
+        });
+        candidates.push(0);
+        candidates.push(Playhead.positionMs());
+        var best = Math.round(timeMs);
+        var bestDist = this.thresholdMs + 1;
+        candidates.forEach(function(candidate) {
+            var dist = Math.abs(candidate - timeMs);
+            if (dist <= TimelineSnap.thresholdMs && dist < bestDist) {
+                best = candidate;
+                bestDist = dist;
+            }
+        });
+        return best;
+    }
+};
+
+const ContextMenu = {
+    menuEl: null,
+    init: function() {
+        if (!document.getElementById('context-menu-styles')) {
+            var style = document.createElement('style');
+            style.id = 'context-menu-styles';
+            style.textContent = '.context-menu{position:fixed;z-index:1000;min-width:180px;background:var(--vc-color-bg-panel,#2b2b2b);border:1px solid var(--vc-color-border,#555);border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.35);padding:4px 0}.context-menu-item{display:block;width:100%;text-align:left;padding:6px 12px;background:none;border:none;color:var(--vc-color-text,#eee);font-size:13px;cursor:pointer}.context-menu-item:hover:not(:disabled){background:var(--vc-color-bg-hover,#3d3d3d)}.context-menu-item:disabled{opacity:.5;cursor:default}.context-menu-sep{height:1px;margin:4px 0;background:var(--vc-color-border,#555)}';
+            document.head.appendChild(style);
+        }
+        var self = this;
+        this.menuEl = document.createElement('div');
+        this.menuEl.className = 'context-menu visually-hidden';
+        this.menuEl.setAttribute('role', 'menu');
+        document.body.appendChild(this.menuEl);
+        document.addEventListener('click', function() { self.hide(); });
+        document.addEventListener('contextmenu', function(e) {
+            if (!e.target.closest('.clip[item-hash]') && !e.target.closest('.track-area')) {
+                self.hide();
+            }
+        });
+        var tracksContainer = document.getElementById('tracks-container');
+        if (!tracksContainer) {
+            return;
+        }
+        tracksContainer.addEventListener('contextmenu', function(e) {
+            var clip = e.target.closest('.clip[item-hash]');
+            if (clip) {
+                e.preventDefault();
+                self.showClipMenu(e, clip.getAttribute('item-hash'));
+                return;
+            }
+            var trackArea = e.target.closest('.track-area');
+            if (trackArea) {
+                e.preventDefault();
+                self.showTrackMenu(e, parseInt(trackArea.getAttribute('data-track-index'), 10));
+            }
+        });
+    },
+    show: function(x, y, items) {
+        var self = this;
+        this.menuEl.innerHTML = '';
+        items.forEach(function(item) {
+            if (item.separator) {
+                var sep = document.createElement('div');
+                sep.className = 'context-menu-sep';
+                self.menuEl.appendChild(sep);
+                return;
+            }
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'context-menu-item';
+            btn.textContent = item.label;
+            btn.disabled = !!item.disabled;
+            btn.addEventListener('click', function(ev) {
+                ev.stopPropagation();
+                self.hide();
+                if (item.action) {
+                    item.action();
+                }
+            });
+            self.menuEl.appendChild(btn);
+        });
+        this.menuEl.classList.remove('visually-hidden');
+        this.menuEl.style.left = x + 'px';
+        this.menuEl.style.top = y + 'px';
+    },
+    hide: function() {
+        if (this.menuEl) {
+            this.menuEl.classList.add('visually-hidden');
+        }
+    },
+    showClipMenu: function(e, clipHash) {
+        var clip = Project.findClip(clipHash);
+        var linked = clip && clip.syncGroup;
+        this.show(e.clientX, e.clientY, [
+            { label: 'Cut at Playhead', action: function() { Project.cutAtPlayhead(); } },
+            { label: 'Copy', action: function() { UI.selectElement('CLIP', clipHash); Clipboard.copy(); } },
+            { label: 'Paste at Playhead', action: function() { Clipboard.paste(); }, disabled: !Clipboard.clips },
+            { label: 'Duplicate', action: function() { UI.selectElement('CLIP', clipHash); Clipboard.duplicate(); } },
+            { separator: true },
+            { label: 'Delete', action: function() { UI.selectElement('CLIP', clipHash); Project.requestDeleteClip(clipHash); } },
+            { label: 'Unlink A/V', action: function() { UI.selectElement('CLIP', clipHash); Project.unlinkAv(clipHash); }, disabled: !linked },
+            { separator: true },
+            { label: 'Properties', action: function() { UI.selectElement('CLIP', clipHash); UI.switchTab('Properties'); } }
+        ]);
+    },
+    showTrackMenu: function(e, trackIndex) {
+        var track = Project.findTrack(trackIndex);
+        if (!track) {
+            return;
+        }
+        this.show(e.clientX, e.clientY, [
+            { label: track.muted ? 'Unmute Track' : 'Mute Track', action: function() {
+                track.muted = !track.muted;
+                UI.reconciliateTracks();
+                ProjectSave.schedule();
+            }},
+            { label: track.locked ? 'Unlock Track' : 'Lock Track', action: function() {
+                track.locked = !track.locked;
+                UI.reconciliateTracks();
+                ProjectSave.schedule();
+            }},
+            { label: 'Add ' + (track.type === 'AUDIO' ? 'Audio' : 'Video') + ' Track', action: function() {
+                Project.addTrack(track.type);
+            }}
+        ]);
+    }
+};
+
+const MediaBin = {
+    filterQuery: '',
+    sortKey: 'name',
+    init: function() {
+        var search = document.getElementById('mediaBinSearch');
+        var sort = document.getElementById('mediaBinSort');
+        if (search) {
+            search.addEventListener('input', function() {
+                MediaBin.filterQuery = search.value.trim().toLowerCase();
+                MediaBin.applyFilter();
+            });
+        }
+        if (sort) {
+            sort.addEventListener('change', function() {
+                MediaBin.sortKey = sort.value;
+                MediaBin.applySort();
+            });
+        }
+    },
+    applyFilter: function() {
+        document.querySelectorAll('#media-list .file-item').forEach(function(item) {
+            var nameEl = item.querySelector('.file-name');
+            var text = nameEl ? nameEl.textContent.toLowerCase() : '';
+            item.style.display = !MediaBin.filterQuery || text.indexOf(MediaBin.filterQuery) !== -1 ? '' : 'none';
+        });
+    },
+    applySort: function() {
+        var list = document.getElementById('media-list');
+        if (!list) {
+            return;
+        }
+        var items = Array.from(list.querySelectorAll('.file-item'));
+        items.sort(function(a, b) {
+            var mediaA = Project.findMedia(a.getAttribute('item-hash'));
+            var mediaB = Project.findMedia(b.getAttribute('item-hash'));
+            if (!mediaA || !mediaB) {
+                return 0;
+            }
+            if (MediaBin.sortKey === 'duration') {
+                return (mediaB.duration || 0) - (mediaA.duration || 0);
+            }
+            if (MediaBin.sortKey === 'type') {
+                return Project.resolveMediaType(mediaA).localeCompare(Project.resolveMediaType(mediaB));
+            }
+            return (mediaA.name || '').localeCompare(mediaB.name || '');
+        });
+        items.forEach(function(item) { list.appendChild(item); });
+        this.applyFilter();
+    },
+    refresh: function() {
+        this.applySort();
+    }
+};
+
+const RecentProjects = {
+    storageKey: 'videoCreatorRecent',
+    maxItems: 8,
+    track: function() {
+        if (!currentProject || !currentProject.id) {
+            return;
+        }
+        var list = [];
+        try {
+            list = JSON.parse(localStorage.getItem(this.storageKey) || '[]');
+        } catch (err) {
+            list = [];
+        }
+        list = list.filter(function(p) { return p.id !== currentProject.id; });
+        list.unshift({
+            id: currentProject.id,
+            name: currentProject.name || 'Untitled project',
+            openedAt: Date.now()
+        });
+        list = list.slice(0, this.maxItems);
+        localStorage.setItem(this.storageKey, JSON.stringify(list));
+    }
+};
+
 const ProjectSave = {
     timer: null,
     saving: false,
@@ -2072,6 +2569,7 @@ const ProjectSave = {
             if (!silent) {
                 UI.notify('Project saved.', 'success');
             }
+            Preview.scheduleRefresh();
         }).catch(function(err) {
             console.error('Save error', err);
             if (silent) {
@@ -2101,6 +2599,12 @@ const Preview = {
     running: false,
     suppressVideoSync: false,
     durationMs: 0,
+    hls: null,
+    sessionId: null,
+    manifestUrl: null,
+    ws: null,
+    refreshTimer: null,
+    shuttleSpeed: 0,
     init: function() {
         this.container = document.querySelector('.preview-container');
         this.controls = document.getElementById('previewControls');
@@ -2113,6 +2617,10 @@ const Preview = {
         this.bindTransport(document.getElementById('previewForwardBtn'), 'forward');
         this.bindTransport(document.getElementById('previewPrevFrameBtn'), 'prevFrame');
         this.bindTransport(document.getElementById('previewNextFrameBtn'), 'nextFrame');
+        var fullscreenBtn = document.getElementById('previewFullscreenBtn');
+        if (fullscreenBtn) {
+            fullscreenBtn.addEventListener('click', function() { Preview.toggleFullscreen(); });
+        }
         if (this.video) {
             this.video.addEventListener('timeupdate', function() {
                 Preview.syncPlayheadFromVideo();
@@ -2128,6 +2636,16 @@ const Preview = {
             });
             this.video.addEventListener('seeked', function() {
                 Preview.syncPlayheadFromVideo();
+            });
+            this.video.addEventListener('dblclick', function() {
+                Preview.toggleFullscreen();
+            });
+        }
+        if (this.container) {
+            this.container.addEventListener('dblclick', function(e) {
+                if (e.target === Preview.container || e.target === Preview.placeholder) {
+                    Preview.toggleFullscreen();
+                }
             });
         }
     },
@@ -2168,12 +2686,17 @@ const Preview = {
             && this.container.classList.contains('preview-container--active');
     },
     showPlaceholder: function() {
+        this.disconnectSession();
         if (this.container) {
             this.container.classList.remove('preview-container--active');
         }
         if (this.video) {
             this.video.classList.add('visually-hidden');
             this.video.pause();
+            if (this.hls) {
+                this.hls.destroy();
+                this.hls = null;
+            }
             this.video.removeAttribute('src');
             this.video.load();
         }
@@ -2261,15 +2784,19 @@ const Preview = {
         if (!currentProject.id || this.running) {
             return;
         }
+        if (typeof meltAvailable !== 'undefined' && !meltAvailable) {
+            UI.notify('Preview unavailable — MLT (melt) is not installed.', 'error');
+            return;
+        }
         this.running = true;
         var playBtn = document.getElementById('playBtn');
         var previewPlayBtn = document.getElementById('previewPlayBtn');
         UI.setButtonBusy(playBtn, true);
         UI.setButtonBusy(previewPlayBtn, true);
-        UI.notify('Generating preview…', 'info');
+        UI.notify('Starting preview session…', 'info');
         ProjectSave.save({ silent: true })
             .then(function() {
-                return fetch('/api/editor/' + currentProject.id + '/preview', { method: 'POST' });
+                return fetch('/api/editor/' + currentProject.id + '/preview/session', { method: 'POST' });
             })
             .then(function(response) {
                 if (!response.ok) {
@@ -2285,20 +2812,23 @@ const Preview = {
                 if (data.error) {
                     throw new Error(data.error);
                 }
-                Preview.video.src = data.downloadUrl + '?t=' + Date.now();
+                Preview.sessionId = data.sessionId;
+                Preview.manifestUrl = data.manifestUrl;
                 Preview.durationMs = data.durationSeconds
                     ? Math.round(data.durationSeconds * 1000)
                     : Project.contentDurationMs();
+                Preview.connectWebSocket(data.sessionId);
+                Preview.loadHls(data.manifestUrl);
                 Preview.showVideo();
                 UI.notify('Preview ready.', 'success');
                 return new Promise(function(resolve, reject) {
                     Preview.video.onloadedmetadata = function() {
-                        Preview.durationMs = Math.round(Preview.video.duration * 1000);
+                        Preview.durationMs = Math.round(Preview.video.duration * 1000) || Preview.durationMs;
                         Preview.seekVideoToPlayhead();
                         Preview.video.play().then(resolve).catch(reject);
                     };
                     Preview.video.onerror = function() {
-                        reject(new Error('Failed to load preview video'));
+                        reject(new Error('Failed to load preview stream'));
                     };
                 });
             })
@@ -2310,6 +2840,143 @@ const Preview = {
                 UI.setButtonBusy(document.getElementById('playBtn'), false);
                 UI.setButtonBusy(document.getElementById('previewPlayBtn'), false);
             });
+    },
+    loadHls: function(manifestUrl) {
+        if (!this.video) {
+            return;
+        }
+        if (this.hls) {
+            this.hls.destroy();
+            this.hls = null;
+        }
+        var url = manifestUrl + (manifestUrl.indexOf('?') === -1 ? '?' : '&') + 't=' + Date.now();
+        if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+            this.hls = new Hls({ enableWorker: true });
+            this.hls.loadSource(url);
+            this.hls.attachMedia(this.video);
+            this.hls.on(Hls.Events.ERROR, function(event, data) {
+                if (data.fatal) {
+                    console.error('HLS error', data);
+                }
+            });
+        } else if (this.video.canPlayType('application/vnd.apple.mpegurl')) {
+            this.video.src = url;
+        } else {
+            throw new Error('HLS playback is not supported in this browser');
+        }
+    },
+    reloadHls: function() {
+        if (!this.manifestUrl) {
+            return;
+        }
+        this.loadHls(this.manifestUrl);
+        this.seekVideoToPlayhead();
+    },
+    connectWebSocket: function(sessionId) {
+        this.disconnectWebSocket();
+        var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        this.ws = new WebSocket(proto + '//' + window.location.host + '/ws/preview/' + sessionId);
+        this.ws.onmessage = function(ev) {
+            try {
+                var data = JSON.parse(ev.data);
+                if (data.event === 'refreshed') {
+                    Preview.reloadHls();
+                    UI.notify('Preview refreshed.', 'info');
+                }
+            } catch (err) {
+                console.warn('Preview WS message', ev.data);
+            }
+        };
+        this.ws.onerror = function() {
+            console.warn('Preview WebSocket error');
+        };
+    },
+    disconnectWebSocket: function() {
+        if (this.ws) {
+            this.ws.onclose = null;
+            if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+                this.ws.close();
+            }
+            this.ws = null;
+        }
+    },
+    disconnectSession: function() {
+        this.disconnectWebSocket();
+        this.sessionId = null;
+        this.manifestUrl = null;
+        this.shuttleSpeed = 0;
+        if (this.refreshTimer) {
+            clearTimeout(this.refreshTimer);
+            this.refreshTimer = null;
+        }
+    },
+    scheduleRefresh: function() {
+        var self = this;
+        if (!this.sessionId) {
+            return;
+        }
+        if (this.refreshTimer) {
+            clearTimeout(this.refreshTimer);
+        }
+        this.refreshTimer = setTimeout(function() {
+            if (self.ws && self.ws.readyState === WebSocket.OPEN) {
+                self.ws.send('refresh');
+            }
+        }, 1500);
+    },
+    handleShuttleKey: function(key) {
+        if (!this.hasLoadedVideo() || !this.video) {
+            return;
+        }
+        if (key === 'k' || key === 'K') {
+            this.video.pause();
+            this.shuttleSpeed = 0;
+            this.video.playbackRate = 1;
+            return;
+        }
+        if (key === 'j' || key === 'J') {
+            if (this.video.paused) {
+                this.seek(-1);
+            } else {
+                this.shuttleSpeed = Math.max(-4, this.shuttleSpeed - 1);
+                this.applyShuttle();
+            }
+            return;
+        }
+        if (key === 'l' || key === 'L') {
+            if (this.video.paused || this.shuttleSpeed <= 0) {
+                this.shuttleSpeed = Math.max(1, this.shuttleSpeed + 1);
+                this.applyShuttle();
+            } else {
+                this.shuttleSpeed = Math.min(4, this.shuttleSpeed + 1);
+                this.applyShuttle();
+            }
+        }
+    },
+    applyShuttle: function() {
+        if (!this.video) {
+            return;
+        }
+        if (this.shuttleSpeed <= 0) {
+            this.video.pause();
+            this.video.playbackRate = 1;
+            return;
+        }
+        this.video.playbackRate = this.shuttleSpeed;
+        this.video.play();
+    },
+    toggleFullscreen: function() {
+        var target = this.container || this.video;
+        if (!target) {
+            return;
+        }
+        if (document.fullscreenElement) {
+            document.exitFullscreen();
+            return;
+        }
+        if (target.requestFullscreen) {
+            target.requestFullscreen();
+        }
     },
     stop: function() {
         Playhead.setFollowingPlayback(false);
@@ -2336,6 +3003,7 @@ const ClipTrim = {
             UI.notify('Track is locked.', 'error');
             return;
         }
+        History.push('Trim clip');
         var partners = Project.findAvPartners(clip);
         this.active = {
             clipHash: clipHash,
@@ -2424,6 +3092,26 @@ const MenuBar = {
                 MenuBar.handleAction(btn.getAttribute('data-action'));
             });
         });
+        MenuBar.updateEditState();
+    },
+    toggleLabel: function(action, enabled, onLabel, offLabel) {
+        var btn = document.querySelector('[data-action="' + action + '"]');
+        if (btn) {
+            btn.textContent = enabled ? onLabel : offLabel;
+            btn.setAttribute('aria-checked', enabled ? 'true' : 'false');
+        }
+    },
+    updateEditState: function() {
+        var undoBtn = document.querySelector('[data-action="edit-undo"]');
+        var redoBtn = document.querySelector('[data-action="edit-redo"]');
+        if (undoBtn) {
+            undoBtn.disabled = !History.canUndo();
+        }
+        if (redoBtn) {
+            redoBtn.disabled = !History.canRedo();
+        }
+        MenuBar.toggleLabel('view-snap', TimelineSnap.enabled, 'Snap: On', 'Snap: Off');
+        MenuBar.toggleLabel('view-ripple', EditSettings.rippleDelete, 'Ripple Delete: On', 'Ripple Delete: Off');
     },
     handleAction: function(action) {
         switch (action) {
@@ -2439,6 +3127,12 @@ const MenuBar = {
             case 'file-export':
                 document.getElementById('exportModal').style.display = 'flex';
                 break;
+            case 'edit-undo':
+                History.undo();
+                break;
+            case 'edit-redo':
+                History.redo();
+                break;
             case 'edit-cut':
                 Project.cutAtPlayhead();
                 break;
@@ -2448,6 +3142,23 @@ const MenuBar = {
                     Project.requestDeleteClip(hash);
                 } else {
                     UI.notify('Select a clip to delete.', 'error');
+                }
+                break;
+            case 'edit-copy':
+                Clipboard.copy();
+                break;
+            case 'edit-paste':
+                Clipboard.paste();
+                break;
+            case 'edit-duplicate':
+                Clipboard.duplicate();
+                break;
+            case 'edit-unlink':
+                var unlinkHash = UI.getSelectedClipHash();
+                if (unlinkHash) {
+                    Project.unlinkAv(unlinkHash);
+                } else {
+                    UI.notify('Select a linked clip to unlink.', 'error');
                 }
                 break;
             case 'edit-deselect':
@@ -2461,6 +3172,16 @@ const MenuBar = {
                 break;
             case 'view-fit':
                 TimelineZoom.fitToTimeline();
+                break;
+            case 'view-snap':
+                TimelineSnap.enabled = !TimelineSnap.enabled;
+                MenuBar.updateEditState();
+                UI.notify(TimelineSnap.enabled ? 'Timeline snap enabled.' : 'Timeline snap disabled.', 'info');
+                break;
+            case 'view-ripple':
+                EditSettings.rippleDelete = !EditSettings.rippleDelete;
+                MenuBar.updateEditState();
+                UI.notify(EditSettings.rippleDelete ? 'Ripple delete enabled.' : 'Ripple delete disabled.', 'info');
                 break;
             case 'help-about':
                 UI.notify('Video Creator — non-linear video editor (v1.0.0)', 'info');
@@ -2714,6 +3435,9 @@ document.addEventListener('DOMContentLoaded', function() {
     ProjectSave.init();
     MenuBar.init();
     ClipTrim.init();
+    ContextMenu.init();
+    MediaBin.init();
+    RecentProjects.track();
     UI.updateTimelineActions();
 
     var applyTransitionBtn = document.getElementById('applyTransitionBtn');
@@ -2767,8 +3491,47 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     document.addEventListener('keydown', function(e) {
-        if (document.activeElement && document.activeElement.tagName === 'INPUT') {
+        if (document.activeElement && (document.activeElement.tagName === 'INPUT' ||
+            document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT')) {
             return;
+        }
+        if (e.ctrlKey || e.metaKey) {
+            if (e.key === 'z' || e.key === 'Z') {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    History.redo();
+                } else {
+                    History.undo();
+                }
+                return;
+            }
+            if (e.key === 'y' || e.key === 'Y') {
+                e.preventDefault();
+                History.redo();
+                return;
+            }
+            if (e.key === 'c' || e.key === 'C') {
+                e.preventDefault();
+                Clipboard.copy();
+                return;
+            }
+            if (e.key === 'v' || e.key === 'V') {
+                e.preventDefault();
+                Clipboard.paste();
+                return;
+            }
+            if (e.key === 'd' || e.key === 'D') {
+                e.preventDefault();
+                Clipboard.duplicate();
+                return;
+            }
+        }
+        if (e.key === 'j' || e.key === 'J' || e.key === 'k' || e.key === 'K' || e.key === 'l' || e.key === 'L') {
+            if (Preview.hasLoadedVideo()) {
+                e.preventDefault();
+                Preview.handleShuttleKey(e.key);
+                return;
+            }
         }
         if (e.key === 'Delete' || e.key === 'Backspace') {
             var hash = UI.getSelectedClipHash();

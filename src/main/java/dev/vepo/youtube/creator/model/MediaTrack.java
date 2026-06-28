@@ -12,6 +12,7 @@ public class MediaTrack {
     private boolean visible = true;
     private boolean locked = false;
     private double volume = 1.0;
+    private String blendMode;
     private List<MediaClip> clips = new ArrayList<>();
     
     public MediaTrack() {}
@@ -40,6 +41,9 @@ public class MediaTrack {
     
     public double getVolume() { return volume; }
     public void setVolume(double volume) { this.volume = volume; }
+
+    public String getBlendMode() { return blendMode; }
+    public void setBlendMode(String blendMode) { this.blendMode = blendMode; }
     
     public List<MediaClip> getClips() { return clips; }
     public void setClips(List<MediaClip> clips) { this.clips = clips; }

@@ -169,9 +169,13 @@ Three functional zones: header, projects panel, system status panel. Kdenlive-in
 | - [x] | `POST /api/editor/{projectId}/media` | Media upload |
 | - [x] | `DELETE /api/editor/{projectId}/media/{hash}` | Remove media |
 | - [x] | `PUT /api/editor/{projectId}/media/{hash}` | Rename media |
-| - [x] | `POST /api/editor/{projectId}/preview` | Timeline preview |
+| - [x] | `POST /api/editor/{projectId}/preview/session` | HLS preview session (replaces file-based preview) |
+| - [x] | `DELETE /api/editor/{projectId}/preview/session/{sessionId}` | Stop preview session |
+| - [x] | `GET /preview/{sessionId}/{path}` | HLS manifest and segments |
 | - [x] | `POST /api/editor/{projectId}/render` | Export render (format + quality) |
-| - [x] | `GET /download/{filename}` | Preview playback + export download |
+| - [x] | `POST /api/editor/{projectId}/render/queue` | Enqueue render job |
+| - [x] | `POST /api/editor/{projectId}/duplicate` | Duplicate project |
+| - [x] | `GET /api/templates` | Project templates |
+| - [x] | `GET /api/editor/{projectId}/archive` | Project archive download |
+| - [x] | `GET /download/{filename}` | Export download |
 | - [x] | `GET /api/video/health` | Polled from main window |
-| - [x] | `POST /api/timeline/preview` | Legacy JSON API (available; UI uses project-scoped preview) |
-| - [x] | `POST /api/timeline/render` | Legacy JSON API (available; UI uses project-scoped render) |

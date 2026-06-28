@@ -77,24 +77,32 @@ public class WebSteps {
                 RestAssured.given().when().get("/download/" + filename));
     }
 
-    @When("I request a preview for the timeline project")
-    public void requestPreview() {
+    @When("I request a preview for the persisted project")
+    public void requestPreviewForProject() {
+        context.setLastResponse(
+                RestAssured.given()
+                        .when()
+                        .post("/api/editor/" + context.getProjectId() + "/preview/session"));
+    }
+
+    @When("I request a render for the persisted project")
+    public void requestRenderForProject() {
         context.setLastResponse(
                 RestAssured.given()
                         .contentType(ContentType.JSON)
-                        .body(context.getTimelineProject())
+                        .body("{}")
                         .when()
-                        .post("/api/timeline/preview"));
+                        .post("/api/editor/" + context.getProjectId() + "/render"));
+    }
+
+    @When("I request a preview for the timeline project")
+    public void requestPreview() {
+        requestPreviewForProject();
     }
 
     @When("I request a render for the timeline project")
     public void requestRender() {
-        context.setLastResponse(
-                RestAssured.given()
-                        .contentType(ContentType.JSON)
-                        .body(context.getTimelineProject())
-                        .when()
-                        .post("/api/timeline/render"));
+        requestRenderForProject();
     }
 
     @Then("the page body should contain {string}")
@@ -140,5 +148,36 @@ public class WebSteps {
         var status = context.getLastResponse().statusCode();
         assertTrue(status == ok || status == error,
                 "Expected " + ok + " or " + error + " but was " + status);
+    }
+
+    @When("I duplicate the persisted project")
+    public void duplicatePersistedProject() {
+        context.setLastResponse(
+                RestAssured.given()
+                        .when()
+                        .post("/api/editor/" + context.getProjectId() + "/duplicate"));
+    }
+
+    @Then("the duplicate response status should be {int}")
+    public void duplicateResponseStatus(int status) {
+        assertEquals(status, context.getLastResponse().statusCode());
+    }
+
+    @Then("the duplicated project id should differ from the original")
+    public void duplicatedProjectIdDiffers() {
+        var copyId = context.getLastResponse().jsonPath().getString("id");
+        assertNotNull(copyId);
+        assertTrue(!copyId.equals(context.getProjectId()),
+                "Duplicate should have a new id");
+    }
+
+    @When("I request project templates")
+    public void requestProjectTemplates() {
+        context.setLastResponse(RestAssured.given().when().get("/api/templates"));
+    }
+
+    @Then("the templates response status should be {int}")
+    public void templatesResponseStatus(int status) {
+        assertEquals(status, context.getLastResponse().statusCode());
     }
 }

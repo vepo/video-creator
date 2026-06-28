@@ -1,0 +1,26 @@
+[
+  {
+    "id": "grayscale",
+    "name": "Grayscale",
+    "mltService": "greyscale",
+    "defaultParams": {}
+  },
+  {
+    "id": "blur",
+    "name": "Blur",
+    "mltService": "boxblur",
+    "defaultParams": { "hori": 5, "vert": 5 }
+  },
+  {
+    "id": "brightness",
+    "name": "Brightness",
+    "mltService": "brightness",
+    "defaultParams": { "level": 0.2 }
+  },
+  {
+    "id": "contrast",
+    "name": "Contrast",
+    "mltService": "contrast",
+    "defaultParams": { "level": 1.5 }
+  }
+]

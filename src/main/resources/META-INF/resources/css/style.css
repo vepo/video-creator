@@ -81,6 +81,62 @@
     background: var(--vc-color-bg-hover);
 }
 
+.recent-projects-block {
+    margin-bottom: var(--vc-space-lg);
+    padding-bottom: var(--vc-space-md);
+    border-bottom: 1px solid var(--vc-color-border);
+}
+
+.recent-projects-block.recent-panel--empty .recent-projects-list {
+    display: none;
+}
+
+.recent-projects-heading {
+    font-size: var(--vc-font-size-md);
+    font-weight: 600;
+    margin: 0 0 var(--vc-space-sm);
+    color: var(--vc-color-text-muted);
+}
+
+.recent-projects-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--vc-space-sm);
+}
+
+.recent-project-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--vc-space-sm) var(--vc-space-md);
+    background: var(--vc-color-bg-panel-alt);
+    border: 1px solid var(--vc-color-border);
+    border-radius: var(--vc-radius-sm);
+}
+
+.recent-project-link {
+    color: var(--vc-color-accent);
+    text-decoration: none;
+    font-size: var(--vc-font-size-sm);
+}
+
+.recent-project-link:hover {
+    text-decoration: underline;
+}
+
+.recent-project-time {
+    font-size: var(--vc-font-size-xs, 11px);
+    color: var(--vc-color-text-muted);
+}
+
+.recent-projects-empty {
+    margin: 0;
+    font-size: var(--vc-font-size-sm);
+}
+
 .project-table .project-name {
     display: flex;
     align-items: center;

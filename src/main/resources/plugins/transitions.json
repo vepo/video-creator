@@ -1,0 +1,20 @@
+[
+  {
+    "id": "fade",
+    "name": "Fade",
+    "mltService": "fadeOutBrightness",
+    "defaultParams": { "duration": 15 }
+  },
+  {
+    "id": "dissolve",
+    "name": "Dissolve",
+    "mltService": "luma",
+    "defaultParams": { "duration": 15 }
+  },
+  {
+    "id": "wipe",
+    "name": "Wipe",
+    "mltService": "wipe",
+    "defaultParams": { "duration": 15 }
+  }
+]
