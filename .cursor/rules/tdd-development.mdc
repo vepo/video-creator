@@ -1,84 +1,63 @@
 ---
-description: Test-driven development — feature coverage with Gherkin DSL
+description: Test-driven development — JUnit with unit, integration, and Selenium web tests
 alwaysApply: true
 ---
 
 # TDD Development
 
-Follow **Red → Green → Refactor**. Every feature has tests; tests are organized by feature and written in **Gherkin DSL**.
+Follow **Red → Green → Refactor**. Every feature has tests; tests follow the Contraponto pattern (JUnit + Selenium, no Cucumber).
 
 ## Mandatory Rules
 
-1. **Every feature has tests** — no production feature without a matching `.feature` file scenario.
-2. **Tests are built from features** — one feature file per capability; scenarios describe user-visible or domain behavior, not classes.
-3. **Gherkin DSL** — each scenario is a declarative statement using `Feature`, `Scenario`, `Given`, `When`, `Then` (and `Scenario Outline` / `Examples` when data-driven).
+1. **Every feature has tests** — no production feature without a matching JUnit test class.
+2. **Test layers** — pick the right annotation:
+   - `@UnitTest` — pure domain/service logic, no Quarkus boot
+   - `@QuarkusIntegrationTest` — REST Assured / CDI / MongoDB
+   - `@WebPlatformTest` / `@WebEditorTest` — browser tests via `App` DSL (never raw Selenium in test methods)
+3. **Never raw Selenium in test methods** — extend interactions through `App` inner page classes.
+4. **Data setup** — use `Given.persistProject()` / `Given.cleanup()`; fixed times via `TestTimes`.
 
-Do not merge unrelated behaviors into one scenario. Do not implement behavior without a failing scenario first.
-
-## Feature Map
-
-| Feature file | Capability |
-|--------------|------------|
-| `features/domain/project.feature` | Project defaults, equality, JSON |
-| `features/domain/screen_size.feature` | Screen size catalog |
-| `features/domain/frame_rate.feature` | Frame rate catalog |
-| `features/domain/media_type.feature` | Mime type → MediaType |
-| `features/domain/media.feature` | Media entity identity |
-| `features/timeline/timeline_project.feature` | Timeline tracks and duration |
-| `features/timeline/media_track.feature` | Track clip management |
-| `features/timeline/media_clip.feature` | Clip duration and validation |
-| `features/mlt/mlt_xml_generator.feature` | MLT XML for trim and timeline |
-| `features/persistence/projects.feature` | Project MongoDB persistence |
-| `features/api/health.feature` | MLT health endpoint |
-| `features/web/home_page.feature` | Project list page |
-| `features/web/editor.feature` | Editor page and redirects |
-| `features/web/media_upload.feature` | Multipart media upload |
-| `features/web/download.feature` | Processed file download |
-| `features/web/timeline_preview.feature` | Timeline preview API |
-| `features/web/timeline_render.feature` | Timeline render API |
-
-When adding a feature, add or extend its `.feature` file **before** production code.
+Do not merge unrelated behaviors into one test method. Do not implement behavior without a failing test first.
 
 ## Layout
 
 ```
-src/test/resources/features/     ← Gherkin feature files (source of truth)
-src/test/java/.../steps/         ← Step definitions (glue code)
-src/test/java/.../support/       ← @ScenarioScope context, fixtures
-AllFeaturesTest.java          ← extends CucumberQuarkusTest (*Test.java for Surefire)
+src/test/java/dev/vepo/youtube/creator/
+├── shared/           ← @WebTest, App, Given, WebTestExtension, TestTags
+├── project/          ← domain + persistence tests
+├── model/            ← timeline model tests
+├── service/          ← MLT and render tests
+├── api/              ← REST endpoint tests (@QuarkusIntegrationTest)
+└── web/              ← Selenium (@WebPlatformTest, @WebEditorTest) + REST (@QuarkusIntegrationTest)
 ```
 
-## Gherkin Style
+## Test Class Template
 
-```gherkin
-Feature: Project creation
-  As an editor
-  I want a new project with sensible defaults
-  So that I can start editing immediately
+```java
+@WebEditorTest
+class MyFeatureTest {
 
-  Scenario: A new project uses Full HD and 30 FPS defaults
-    Given a newly created project
-    Then the project screen size should be Full HD 1080p
-    And the project frame rate should be 30 FPS web streaming
-    And the project should have no media attached
+    @BeforeEach
+    void setUp() {
+        Given.cleanup();
+    }
+
+    @Test
+    void scenario_description(App app) {
+        app.access()
+           .openNewProject()
+           .assertEditorLoaded();
+    }
+}
 ```
-
-- **Given** — preconditions (declarative, present tense)
-- **When** — action under test (single trigger)
-- **Then** — observable outcome (assertable)
-- Step text must read as plain English about **what** is tested, not **how**
-
-## Step Definitions
-
-- Glue lives in `steps/`; inject services with CDI (`@Inject`).
-- Share scenario state via `@ScenarioScope` beans, not static fields.
-- Domain steps call domain objects directly; web/API steps use REST Assured.
-- Tag environment-dependent scenarios (e.g. `@requires-melt`) and skip when prerequisites are missing.
 
 ## Verification
 
 ```bash
-mvn test
+./mvnw test                           # all tests
+./mvnw test -Ptest-unit               # fast domain tests
+./mvnw test -Ptest-quarkus            # integration (needs MongoDB)
+GITHUB_ACTIONS=true ./mvnw test -Ptest-web   # browser (needs Chrome)
 ```
 
-All scenarios must pass before marking work complete.
+All tests must pass before marking work complete.

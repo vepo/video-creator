@@ -5,10 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Method;
 
+import dev.vepo.youtube.creator.shared.UnitTest;
 import org.junit.jupiter.api.Test;
 
 import dev.vepo.youtube.creator.model.VideoSettings;
 
+@UnitTest
 class VideoEditorControllerPreviewTest {
 
     @Test

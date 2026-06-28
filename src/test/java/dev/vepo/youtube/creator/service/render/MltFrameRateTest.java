@@ -2,10 +2,12 @@ package dev.vepo.youtube.creator.service.render;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import dev.vepo.youtube.creator.shared.UnitTest;
 import org.junit.jupiter.api.Test;
 
 import dev.vepo.youtube.creator.project.FrameRate;
 
+@UnitTest
 class MltFrameRateTest {
 
     @Test

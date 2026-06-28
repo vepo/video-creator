@@ -90,7 +90,15 @@ Prefer `project/` types over `model/` DTOs for new domain work. Rename or consol
 2. **Green** — Minimal code to pass.
 3. **Refactor** — Improve design; keep tests green.
 
-Place tests in `src/test/java` mirroring the production package structure. Use `@QuarkusTest` for integration tests; plain JUnit 5 for pure domain logic.
+Place tests in `src/test/java` mirroring the production package structure:
+
+| Layer | Annotation | Tooling |
+|-------|------------|---------|
+| Unit | `@UnitTest` | Plain JUnit 5 |
+| Integration | `@QuarkusIntegrationTest` | Quarkus + REST Assured |
+| Web UI | `@WebPlatformTest`, `@WebEditorTest` | Selenium via `App` DSL |
+
+See `shared/` test infrastructure and [contraponto-tests.mdc](../contraponto/.cursor/rules/contraponto-tests.mdc) (inherited).
 
 ## Cursor Rules
 

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import java.time.Instant;
 
 import org.bson.types.ObjectId;
+import dev.vepo.youtube.creator.shared.UnitTest;
 import org.junit.jupiter.api.Test;
 
 import dev.vepo.youtube.creator.project.Media;
@@ -13,6 +14,7 @@ import dev.vepo.youtube.creator.project.Project;
 import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbBuilder;
 
+@UnitTest
 class MongoSerializersTest {
 
     private final Jsonb jsonb = JsonbBuilder.create();
