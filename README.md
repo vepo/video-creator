@@ -1,5 +1,7 @@
 # Video Creator
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=vepo_video-creator&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=vepo_video-creator)
+
 Browser-based non-linear video editor built with **Quarkus**. Create **projects**, import **media**, arrange **clips** on a multi-track **timeline**, preview your edit, and **export** finished video — all from a Kdenlive-inspired web UI.
 
 Rendering and preview use the [MLT Framework](https://www.mltframework.org/) (`melt`). Projects and uploaded media are stored in **MongoDB** (GridFS for binary assets).
